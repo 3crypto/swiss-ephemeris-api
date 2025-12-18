@@ -128,8 +128,29 @@ def chart(
 ):
     try:
         # 1) Julian Day (UTC)
-        h_float = hour + minute / 60.0 + second / 3600.0
-        jd = swe.julday(year, month, day, h_float)
+        import swisseph as swe
+        from datetime import datetime
+        from zoneinfo import ZoneInfo
+
+        def jd_ut_from_local(y, m, d, hour, minute, tz_name="America/New_York"):
+            dt_local = datetime(y, m, d, hour, minute, tzinfo=ZoneInfo(tz_name))
+            dt_utc = dt_local.astimezone(ZoneInfo("UTC"))
+
+        ut_hour = dt_utc.hour + dt_utc.minute/60 + dt_utc.second/3600
+        jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, ut_hour)
+        return jd_ut, dt_local, dt_utc
+
+        jd_ut, dt_local, dt_utc = jd_ut_from_local(1982, 2, 14, 19, 55, "America/New_York")
+
+        flags = swe.FLG_SWIEPH
+        moon_lon = swe.calc_ut(jd_ut, swe.MOON, flags)[0][0]
+
+        print("local:", dt_local.isoformat())
+        print("utc:  ", dt_utc.isoformat())
+        print("jd_ut:", jd_ut)
+        print("moon:", moon_lon)
+
+
 
         # 2) Angles (computed in tropical; then converted to sidereal if needed)
         _, ascmc = swe.houses_ex(jd, lat, lon, b"P")
