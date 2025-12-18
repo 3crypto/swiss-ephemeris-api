@@ -36,16 +36,6 @@ EPHE_PATH = os.path.join(BASE_DIR, "ephe")
 os.environ["SE_EPHE_PATH"] = EPHE_PATH
 swe.set_ephe_path(EPHE_PATH + os.sep)  # trailing slash helps sometimes
 
-@app.get("/debug/ephe")
-def debug_ephe():
-    return {
-        "base_dir": BASE_DIR,
-        "ephe_path": EPHE_PATH,
-        "ephe_exists": os.path.isdir(EPHE_PATH),
-        "ephe_files": sorted(os.listdir(EPHE_PATH)) if os.path.isdir(EPHE_PATH) else [],
-        "cwd": os.getcwd(),
-    }
-
 
 # -----------------------------
 # Constants
