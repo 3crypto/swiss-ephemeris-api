@@ -1,14 +1,27 @@
-import os
 from fastapi import FastAPI, HTTPException
+import os
 import swisseph as swe
 
 app = FastAPI()
 
-# -----------------------------
 # Swiss Ephemeris setup
-# -----------------------------
-EPHE_PATH = os.path.join(os.path.dirname(__file__), "ephe")
-swe.set_ephe_path(EPHE_PATH)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+EPHE_PATH = os.path.join(BASE_DIR, "ephe")
+
+# Make it extra explicit for Swiss Ephemeris
+os.environ["SE_EPHE_PATH"] = EPHE_PATH
+swe.set_ephe_path(EPHE_PATH + os.sep)  # trailing slash helps sometimes
+
+@app.get("/debug/ephe")
+def debug_ephe():
+    return {
+        "base_dir": BASE_DIR,
+        "ephe_path": EPHE_PATH,
+        "ephe_exists": os.path.isdir(EPHE_PATH),
+        "ephe_files": sorted(os.listdir(EPHE_PATH)) if os.path.isdir(EPHE_PATH) else [],
+        "cwd": os.getcwd(),
+    }
+
 
 # -----------------------------
 # Constants
