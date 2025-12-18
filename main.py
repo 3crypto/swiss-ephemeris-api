@@ -13,11 +13,11 @@ def custom_openapi():
     schema = get_openapi(
         title="Swiss Ephemeris Chart API",
         version="1.0.0",
-        description="Returns Whole Sign chart data (angles, houses, planets, nodes, Chiron) using Swiss Ephemeris.",
+        description="Swiss Ephemeris (pyswisseph) Whole Sign chart API for GPT Actions.",
         routes=app.routes,
     )
 
-    # ✅ This is the key fix:
+    # Required for GPT Actions: tell it the base URL
     schema["servers"] = [
         {"url": "https://swiss-ephemeris-api-gpnc.onrender.com"}
     ]
