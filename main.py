@@ -4,6 +4,30 @@ import swisseph as swe
 
 app = FastAPI()
 
+from fastapi.openapi.utils import get_openapi
+
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+
+    schema = get_openapi(
+        title="Swiss Ephemeris Chart API",
+        version="1.0.0",
+        description="Returns Whole Sign chart data (angles, houses, planets, nodes, Chiron) using Swiss Ephemeris.",
+        routes=app.routes,
+    )
+
+    # ✅ This is the key fix:
+    schema["servers"] = [
+        {"url": "https://swiss-ephemeris-api-gpnc.onrender.com"}
+    ]
+
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
+
 # Swiss Ephemeris setup
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EPHE_PATH = os.path.join(BASE_DIR, "ephe")
