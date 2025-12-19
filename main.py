@@ -1,6 +1,10 @@
 from fastapi import FastAPI, HTTPException, Query
+from functools import lru_cache
+import time
+import requests
 import os
 import swisseph as swe
+
 
 app = FastAPI()
 
@@ -107,6 +111,56 @@ def planet_payload(lon, asc_sign_idx):
     }
 
 # -----------------------------
+# Geocoding (Nominatim) helpers
+# -----------------------------
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/search"
+NOMINATIM_USER_AGENT = "swiss-ephemeris-api/1.0 (contact: admin@erosgpt.ai)"  # CHANGE THIS
+
+_last_geocode_ts = 0.0
+
+def _throttle_nominatim(min_interval_sec: float = 1.0) -> None:
+    """Basic global throttle to reduce risk of violating Nominatim rate expectations."""
+    global _last_geocode_ts
+    now = time.time()
+    wait = (_last_geocode_ts + min_interval_sec) - now
+    if wait > 0:
+        time.sleep(wait)
+    _last_geocode_ts = time.time()
+
+@lru_cache(maxsize=1024)
+def geocode_place(place: str) -> tuple[float, float]:
+    """
+    Geocode a place string -> (lat, lon) using Nominatim.
+    Cached to reduce repeat lookups.
+    """
+    place = (place or "").strip()
+    if not place:
+        raise ValueError("Empty place string")
+
+    _throttle_nominatim(1.0)
+
+    params = {
+        "q": place,
+        "format": "json",
+        "limit": 1,
+    }
+    headers = {
+        "User-Agent": NOMINATIM_USER_AGENT,
+    }
+
+    r = requests.get(NOMINATIM_URL, params=params, headers=headers, timeout=10)
+    r.raise_for_status()
+    data = r.json()
+
+    if not data:
+        raise ValueError(f"Could not geocode place: '{place}'")
+
+    lat = float(data[0]["lat"])
+    lon = float(data[0]["lon"])
+    return lat, lon
+
+
+# -----------------------------
 # Routes
 # -----------------------------
 @app.get("/")
@@ -122,8 +176,9 @@ def chart(
     minute: int = 0,
     second: float = 0.0,
     tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
-    lat: float = 0.0,
-    lon: float = 0.0,
+    place: str | None = Query(None, description="City/region/country, e.g. 'New Haven, CT'"),
+    lat: float | None = Query(None, description="Latitude (optional if place is provided)"),
+    lon: float | None = Query(None, description="Longitude (optional if place is provided)"),
     zodiac: str = "tropical",          # "tropical" or "sidereal"
     ayanamsa: str = "fagan_bradley",   # used if zodiac="sidereal"
 ):
@@ -146,6 +201,18 @@ def chart(
 
         ut_hour = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
         jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, ut_hour)
+
+        # -----------------------------
+        # Location: lat/lon from inputs OR geocode place
+        # -----------------------------
+        if (lat is None or lon is None) and place:
+            try:
+                lat, lon = geocode_place(place)
+            except Exception as ge:
+                raise ValueError(str(ge))
+
+        if lat is None or lon is None:
+            raise ValueError("Location required: provide lat & lon, or provide place (e.g. 'New Haven, CT').")
 
         # -----------------------------
         # 2) Angles (tropical first)
