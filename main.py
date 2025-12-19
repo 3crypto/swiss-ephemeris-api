@@ -1,3 +1,4 @@
+from typing import Optional, Tuple
 from fastapi import FastAPI, HTTPException, Query
 from functools import lru_cache
 import time
@@ -128,7 +129,7 @@ def _throttle_nominatim(min_interval_sec: float = 1.0) -> None:
     _last_geocode_ts = time.time()
 
 @lru_cache(maxsize=1024)
-def geocode_place(place: str) -> tuple[float, float]:
+def geocode_place(place: str) -> Tuple[float, float]:
     """
     Geocode a place string -> (lat, lon) using Nominatim.
     Cached to reduce repeat lookups.
@@ -176,9 +177,9 @@ def chart(
     minute: int = 0,
     second: float = 0.0,
     tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
-    place: str | None = Query(None, description="City/region/country, e.g. 'New Haven, CT'"),
-    lat: float | None = Query(None, description="Latitude (optional if place is provided)"),
-    lon: float | None = Query(None, description="Longitude (optional if place is provided)"),
+    place: Optional[str] = Query(None, description="City/region/country, e.g. 'New Haven, CT'")
+    lat: Optional[float] = Query(None, description="Latitude (optional if place is provided)")
+    lon: Optional[float] = Query(None, description="Longitude (optional if place is provided)")
     zodiac: str = "tropical",          # "tropical" or "sidereal"
     ayanamsa: str = "fagan_bradley",   # used if zodiac="sidereal"
 ):
