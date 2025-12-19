@@ -124,15 +124,15 @@ def chart(
     tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
     lat: float = 0.0,
     lon: float = 0.0,
-    zodiac: str = "tropical",
-    ayanamsa: str = "fagan_bradley",
+    zodiac: str = "tropical",          # "tropical" or "sidereal"
+    ayanamsa: str = "fagan_bradley",   # used if zodiac="sidereal"
 ):
     try:
         from datetime import datetime
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
         # -----------------------------
-        # 1) Time handling: local → UTC → JD(UT)
+        # 1) Time: local -> UTC -> JD(UT)
         # -----------------------------
         try:
             tz = ZoneInfo(tz_name)
@@ -141,19 +141,11 @@ def chart(
                 f"Invalid tz_name '{tz_name}'. Use an IANA timezone like 'America/New_York'."
             )
 
-        dt_local = datetime(
-            year, month, day, hour, minute, int(second), tzinfo=tz
-        )
+        dt_local = datetime(year, month, day, hour, minute, int(second), tzinfo=tz)
         dt_utc = dt_local.astimezone(ZoneInfo("UTC"))
 
-        ut_hour = (
-            dt_utc.hour
-            + dt_utc.minute / 60.0
-            + dt_utc.second / 3600.0
-        )
-        jd_ut = swe.julday(
-            dt_utc.year, dt_utc.month, dt_utc.day, ut_hour
-        )
+        ut_hour = dt_utc.hour + dt_utc.minute / 60.0 + dt_utc.second / 3600.0
+        jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, ut_hour)
 
         # -----------------------------
         # 2) Angles (tropical first)
@@ -168,8 +160,7 @@ def chart(
         if zodiac == "sidereal":
             if ayanamsa not in AYANAMSA_MAP:
                 raise ValueError(
-                    f"Unknown ayanamsa '{ayanamsa}'. "
-                    f"Use one of: {list(AYANAMSA_MAP.keys())}"
+                    f"Unknown ayanamsa '{ayanamsa}'. Use one of: {list(AYANAMSA_MAP.keys())}"
                 )
 
             swe.set_sid_mode(AYANAMSA_MAP[ayanamsa], 0, 0)
@@ -196,13 +187,11 @@ def chart(
         houses = []
         for h in range(1, 13):
             sidx = (asc_sign_idx + h - 1) % 12
-            houses.append(
-                {
-                    "house": h,
-                    "sign": SIGNS[sidx],
-                    "cusp_longitude": float(sidx * 30.0),
-                }
-            )
+            houses.append({
+                "house": h,
+                "sign": SIGNS[sidx],
+                "cusp_longitude": float(sidx * 30.0),
+            })
 
         # -----------------------------
         # 4) Bodies
@@ -211,21 +200,16 @@ def chart(
         south_nodes_to_add = {}
 
         for name, code in BODIES.items():
-            lon_ecl = norm360(
-                swe.calc_ut(jd_ut, code, flags)[0][0]
-            )
-            bodies_out[name] = planet_payload(
-                lon_ecl, asc_sign_idx
-            )
+            lon_ecl = norm360(swe.calc_ut(jd_ut, code, flags)[0][0])
+            bodies_out[name] = planet_payload(lon_ecl, asc_sign_idx)
 
+            # Auto-create South Nodes
             if name == "north_node_true":
-                south_nodes_to_add["south_node_true"] = planet_payload(
-                    norm360(lon_ecl + 180.0), asc_sign_idx
-                )
+                south_lon = norm360(lon_ecl + 180.0)
+                south_nodes_to_add["south_node_true"] = planet_payload(south_lon, asc_sign_idx)
             if name == "north_node_mean":
-                south_nodes_to_add["south_node_mean"] = planet_payload(
-                    norm360(lon_ecl + 180.0), asc_sign_idx
-                )
+                south_lon = norm360(lon_ecl + 180.0)
+                south_nodes_to_add["south_node_mean"] = planet_payload(south_lon, asc_sign_idx)
 
         bodies_out.update(south_nodes_to_add)
 
