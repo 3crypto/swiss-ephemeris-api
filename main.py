@@ -111,7 +111,7 @@ def planet_payload(lon, asc_sign_idx):
 # -----------------------------
 @app.get("/")
 def home():
-    return {"status": "Swiss API is running"}
+    return {"status": "Swiss API is running", "version": "tzfix-2025-12-18-01"}
 
 @app.get("/chart")
 def chart(
