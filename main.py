@@ -177,9 +177,9 @@ def chart(
     minute: int = 0,
     second: float = 0.0,
     tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
-    place: Optional[str] = Query(None, description="City/region/country, e.g. 'New Haven, CT'")
-    lat: Optional[float] = Query(None, description="Latitude (optional if place is provided)")
-    lon: Optional[float] = Query(None, description="Longitude (optional if place is provided)")
+    place: Optional[str] = Query(None)
+    lat: Optional[float] = Query(None)
+    lon: Optional[float] = Query(None)
     zodiac: str = "tropical",          # "tropical" or "sidereal"
     ayanamsa: str = "fagan_bradley",   # used if zodiac="sidereal"
 ):
