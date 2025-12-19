@@ -175,14 +175,19 @@ def chart(
     day: int,
     hour: int = 0,
     minute: int = 0,
-    second: int = 0.0,
-    tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
+    second: float = 0.0,
+    tz_name: str = Query(...),
     place: Optional[str] = Query(None),
+    location: Optional[str] = Query(None),
+    pl: Optional[str] = Query(None),
     lat: Optional[float] = Query(None),
     lon: Optional[float] = Query(None),
-    zodiac: str = "tropical",          # "tropical" or "sidereal"
-    ayanamsa: str = "fagan_bradley",   # used if zodiac="sidereal"
+    zodiac: str = "tropical",
+    ayanamsa: str = "fagan_bradley",
 ):
+    if not place:
+        place = location or pl
+
     try:
         from datetime import datetime
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
