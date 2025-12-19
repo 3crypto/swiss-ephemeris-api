@@ -175,7 +175,7 @@ def chart(
     day: int,
     hour: int = 0,
     minute: int = 0,
-    second: float = 0.0,
+    second: int = 0.0,
     tz_name: str = Query(..., description="IANA timezone, e.g. America/New_York"),
     place: Optional[str] = Query(None),
     lat: Optional[float] = Query(None),
