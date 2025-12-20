@@ -12,11 +12,10 @@ app = FastAPI()
 from fastapi import Request
 
 @app.middleware("http")
-async def log_requests(request: Request, call_next):
-    print(f"INCOMING {request.method} {request.url}")
-    response = await call_next(request)
-    print(f"STATUS {response.status_code} for {request.url.path}")
-    return response
+async def log_ua(request: Request, call_next):
+    print("UA:", request.headers.get("user-agent", ""))
+    return await call_next(request)
+
 
 from fastapi.openapi.utils import get_openapi
 
