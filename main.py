@@ -185,6 +185,9 @@ from fastapi import Response
 def home_head():
     return Response(status_code=200)  
 
+@app.get("/openai", include_in_schema=False)
+def openai_probe():
+    return {"status": "ok"}
 
 @app.get("/chart")
 def chart(
