@@ -179,9 +179,11 @@ def geocode_place(place: str) -> Tuple[float, float]:
 def home():
     return {"status": "Swiss API is running", "version": "tzfix-2025-12-18-01"}
 
-@app.head("/")
+from fastapi import Response
+
+@app.api_route("/", methods=["HEAD"], include_in_schema=False)
 def home_head():
-    return Response(status_code=200)
+    return Response(status_code=200)  
 
 
 @app.get("/chart")
