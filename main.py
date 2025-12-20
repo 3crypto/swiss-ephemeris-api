@@ -6,6 +6,7 @@ import requests
 import os
 import swisseph as swe
 from fastapi import Response
+import JSONResponse
 
 app = FastAPI()
 
@@ -347,6 +348,8 @@ def chart(
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
+from fastapi.responses import JSONResponse
+
 @app.get("/chart_gpt")
 def chart_gpt(
     year: int,
@@ -356,37 +359,32 @@ def chart_gpt(
     minute: int = 0,
     second: float = 0.0,
     tz_name: str = Query(...),
-
-    # Canonical
     place: Optional[str] = Query(None),
-
-    # Aliases (accept them so GPT can't break you)
-    location: Optional[str] = Query(None),
-    pl: Optional[str] = Query(None),
-
-    # Coordinate fallback
     lat: Optional[float] = Query(None),
     lon: Optional[float] = Query(None),
-
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
 ):
-    if not place:
-        place = location or pl
-
-    return chart(
-        year=year,
-        month=month,
-        day=day,
-        hour=hour,
-        minute=minute,
-        second=second,
+    # Call your full chart
+    full = chart(
+        year=year, month=month, day=day,
+        hour=hour, minute=minute, second=second,
         tz_name=tz_name,
-        place=place,
-        location=None,
-        pl=None,
-        lat=lat,
-        lon=lon,
-        zodiac=zodiac,
-        ayanamsa=ayanamsa,
+        place=place, location=None, pl=None,
+        lat=lat, lon=lon,
+        zodiac=zodiac, ayanamsa=ayanamsa,
     )
+
+    # If `chart()` returns a dict, trim it down for Actions reliability
+    # (angles + bodies only — no houses list, no verbose display strings)
+    trimmed = {
+        "dt_local": full.get("dt_local"),
+        "dt_utc": full.get("dt_utc"),
+        "timezone": full.get("timezone"),
+        "location": full.get("location"),
+        "zodiac": full.get("zodiac"),
+        "ayanamsa": full.get("ayanamsa"),
+        "angles": full.get("angles"),
+        "bodies": full.get("bodies"),
+    }
+    return JSONResponse(content=trimmed)
