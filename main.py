@@ -9,6 +9,15 @@ import swisseph as swe
 
 app = FastAPI()
 
+from fastapi import Request
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    print(f"INCOMING {request.method} {request.url}")
+    response = await call_next(request)
+    print(f"STATUS {response.status_code} for {request.url.path}")
+    return response
+
 from fastapi.openapi.utils import get_openapi
 
 def custom_openapi():
