@@ -199,7 +199,7 @@ def home_head():
 def openai_probe():
     return {"status": "ok"}
 
-@app.get("/chart")
+@app.get("/chart", include_in_schema=False)
 def chart(
     year: int,
     month: int,
@@ -216,12 +216,46 @@ def chart(
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
 ):
+    
     if not place:
         place = location or pl
 
     try:
         from datetime import datetime
         from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+@app.get("/chart_gpt")
+def chart_gpt(
+    year: int,
+    month: int,
+    day: int,
+    hour: int = 0,
+    minute: int = 0,
+    second: float = 0.0,
+    tz_name: str = Query(...),
+    place: Optional[str] = Query(None),
+    lat: Optional[float] = Query(None),
+    lon: Optional[float] = Query(None),
+    zodiac: str = "tropical",
+    ayanamsa: str = "fagan_bradley",
+):
+    # Call your existing implementation, but avoid aliases
+    return chart(
+        year=year,
+        month=month,
+        day=day,
+        hour=hour,
+        minute=minute,
+        second=second,
+        tz_name=tz_name,
+        place=place,
+        location=None,
+        pl=None,
+        lat=lat,
+        lon=lon,
+        zodiac=zodiac,
+        ayanamsa=ayanamsa,
+    )
 
         # -----------------------------
         # 1) Time: local -> UTC -> JD(UT)
