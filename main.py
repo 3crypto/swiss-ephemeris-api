@@ -356,13 +356,24 @@ def chart_gpt(
     minute: int = 0,
     second: float = 0.0,
     tz_name: str = Query(...),
+
+    # Canonical
     place: Optional[str] = Query(None),
+
+    # Aliases (accept them so GPT can't break you)
+    location: Optional[str] = Query(None),
+    pl: Optional[str] = Query(None),
+
+    # Coordinate fallback
     lat: Optional[float] = Query(None),
     lon: Optional[float] = Query(None),
+
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
 ):
-    # Call your existing implementation, but avoid aliases
+    if not place:
+        place = location or pl
+
     return chart(
         year=year,
         month=month,
