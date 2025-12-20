@@ -10,13 +10,23 @@ from fastapi import Response
 app = FastAPI()
 
 from fastapi import Request
+import time
 
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
-    print(f"UA: {request.headers.get('user-agent','')}")
+    start = time.time()
+    ua = request.headers.get("user-agent", "")
+    accept = request.headers.get("accept", "")
+    print(f"UA: {ua}")
+    print(f"ACCEPT: {accept}")
     print(f"INCOMING {request.method} {request.url}")
+
     response = await call_next(request)
-    print(f"STATUS {response.status_code} for {request.url.path}")
+
+    ct = response.headers.get("content-type", "")
+    cl = response.headers.get("content-length", "")
+    ms = int((time.time() - start) * 1000)
+    print(f"STATUS {response.status_code} ct={ct} len={cl} ms={ms} path={request.url.path}")
     return response
 
 
