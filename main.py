@@ -6,7 +6,7 @@ import requests
 import os
 import swisseph as swe
 from fastapi import Response
-import JSONResponse
+from fastapi.responses import JSONResponse
 
 app = FastAPI()
 
