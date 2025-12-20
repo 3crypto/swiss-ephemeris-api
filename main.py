@@ -12,9 +12,12 @@ app = FastAPI()
 from fastapi import Request
 
 @app.middleware("http")
-async def log_ua(request: Request, call_next):
-    print("UA:", request.headers.get("user-agent", ""))
-    return await call_next(request)
+async def log_requests(request: Request, call_next):
+    print(f"UA: {request.headers.get('user-agent','')}")
+    print(f"INCOMING {request.method} {request.url}")
+    response = await call_next(request)
+    print(f"STATUS {response.status_code} for {request.url.path}")
+    return response
 
 
 from fastapi.openapi.utils import get_openapi
@@ -175,6 +178,11 @@ def geocode_place(place: str) -> Tuple[float, float]:
 @app.get("/")
 def home():
     return {"status": "Swiss API is running", "version": "tzfix-2025-12-18-01"}
+
+@app.head("/")
+def home_head():
+    return Response(status_code=200)
+
 
 @app.get("/chart")
 def chart(
