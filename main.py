@@ -8,6 +8,43 @@ import swisseph as swe
 from fastapi import Response
 from fastapi.responses import JSONResponse
 
+from pydantic import BaseModel
+from typing import Dict, Optional, Any
+
+class LocationModel(BaseModel):
+    lat: float
+    lon: float
+
+class AyanamsaModel(BaseModel):
+    name: Optional[str] = None
+    degrees: Optional[float] = None
+
+class AnglesModel(BaseModel):
+    asc: float
+    asc_sign: str
+    dsc: float
+    mc: float
+    mc_sign: str
+    ic: float
+
+class BodyModel(BaseModel):
+    longitude: float
+    sign: str
+    deg_in_sign: float
+    house_whole_sign: int
+    display: str
+
+class ChartGPTResponse(BaseModel):
+    dt_local: str
+    dt_utc: str
+    timezone: str
+    location: LocationModel
+    zodiac: str
+    ayanamsa: AyanamsaModel
+    angles: AnglesModel
+    bodies: Dict[str, BodyModel]
+
+
 app = FastAPI()
 
 from fastapi import Request
@@ -350,7 +387,7 @@ def chart(
 
 from fastapi.responses import JSONResponse
 
-@app.get("/chart_gpt")
+@app.get ("/chart_gpt", response_model=ChartGPTResponse)
 def chart_gpt(
     year: int,
     month: int,
