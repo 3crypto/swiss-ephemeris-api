@@ -402,7 +402,7 @@ class DailyTransitRuleEngine:
         hits = self.rank_hits(hits)
         return hits
         
-def build_positions_from_chart_response(chart: dict, *, sect: Optional[str] = None, include_pof: bool = False) -> Dict[str, BodyPosition]:
+def build_positions_from_chart_response(chart: dict, *, sect: str) -> Dict[str, BodyPosition]:
     """
     Convert your /chart JSON into the {Name: BodyPosition} dict
     expected by DailyTransitRuleEngine.
@@ -450,24 +450,27 @@ def build_positions_from_chart_response(chart: dict, *, sect: Optional[str] = No
     if "mc" in angles:
         out["Midheaven"] = BodyPosition(longitude=float(angles["mc"]))
 
-    # Part of Fortune (natal point)
-    if include_pof:
-        if sect is None:
-            raise ValueError("include_pof=True requires sect='diurnal' or 'nocturnal'")
+    # Part of Fortune (natal point) — always included
+    if sect is None:
+        raise ValueError("sect is required to compute Part of Fortune ('diurnal' or 'nocturnal')")
 
-        sect_norm = sect.lower().strip()
-        if sect_norm not in {"diurnal", "nocturnal"}:
-            raise ValueError("sect must be 'diurnal' or 'nocturnal'")
+    sect_norm = sect.lower().strip()
+    if sect_norm not in {"diurnal", "nocturnal"}:
+        raise ValueError("sect must be 'diurnal' or 'nocturnal'")
 
-        asc_lon = out.get("Ascendant").longitude if "Ascendant" in out else None
-        sun_lon = out.get("Sun").longitude if "Sun" in out else None
-        moon_lon = out.get("Moon").longitude if "Moon" in out else None
+    asc_lon = out.get("Ascendant").longitude if "Ascendant" in out else None
+    sun_lon = out.get("Sun").longitude if "Sun" in out else None
+    moon_lon = out.get("Moon").longitude if "Moon" in out else None
 
-        if asc_lon is None or sun_lon is None or moon_lon is None:
-            raise ValueError("Cannot compute Part of Fortune: need Ascendant, Sun, and Moon longitudes")
+    if asc_lon is None or sun_lon is None or moon_lon is None:
+        raise ValueError("Cannot compute Part of Fortune: need Ascendant, Sun, and Moon longitudes")
 
-        pof_lon = calc_part_of_fortune(asc_lon=asc_lon, sun_lon=sun_lon, moon_lon=moon_lon, sect=sect_norm)
-        out["Part of Fortune"] = BodyPosition(longitude=float(pof_lon))
-        
+    pof_lon = calc_part_of_fortune(
+        asc_lon=asc_lon,
+        sun_lon=sun_lon,
+        moon_lon=moon_lon,
+        sect=sect_norm,
+    )
+    out["Part of Fortune"] = BodyPosition(longitude=float(pof_lon))
     return out
 

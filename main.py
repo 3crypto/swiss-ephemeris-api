@@ -135,8 +135,9 @@ def daily_transits(
             zodiac=zodiac, ayanamsa=ayanamsa,
         )
 
-        natal = build_positions_from_chart_response(natal_chart, sect=sect, include_pof=True)
-        transits = build_positions_from_chart_response(transit_chart)
+        natal = build_positions_from_chart_response(natal_chart, sect=sect)
+        transits = build_positions_from_chart_response(transit_chart, sect=sect)
+
 
         engine = DailyTransitRuleEngine(sect=sect, minute_tolerance_arcmin=minute_tol_arcmin)
         hits = engine.run_daily(transits=transits, natal=natal)
