@@ -9,13 +9,8 @@ from .astro_core.ephemeris import compute_chart
 from .astro_core.daily_transits import DailyTransitRuleEngine, build_positions_from_chart_response
 
 
-
 app = FastAPI()
 
-
-# -----------------------------
-# Logging middleware (optional)
-# -----------------------------
 @app.middleware("http")
 async def log_requests(request: Request, call_next):
     start = time.time()
@@ -33,31 +28,18 @@ async def log_requests(request: Request, call_next):
     print(f"STATUS {response.status_code} ct={ct} len={cl} ms={ms} path={request.url.path}")
     return response
 
-
-# -----------------------------
-# Swiss Ephemeris setup
-# -----------------------------
-# This assumes you have an `ephe/` folder at the project root.
-# If your ephe folder is elsewhere, change this path.
+# Swiss Ephemeris setup (expects /Desktop/swiss_api/ephe)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
-@app.on_event("startup")
-def _startup():
-    init_ephemeris(EPHE_PATH)
+init_ephemeris(EPHE_PATH)
 
-
-# -----------------------------
-# Routes
-# -----------------------------
 @app.get("/")
 def home():
     return {"status": "Swiss API is running"}
 
-
 @app.api_route("/", methods=["HEAD"], include_in_schema=False)
 def home_head():
     return Response(status_code=200)
-
 
 @app.get("/chart", response_model=ChartResponse)
 def chart(
@@ -89,7 +71,6 @@ def chart(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
 
 @app.get("/daily_transits")
 def daily_transits(
@@ -135,17 +116,19 @@ def daily_transits(
             zodiac=zodiac, ayanamsa=ayanamsa,
         )
 
-        natal = build_positions_from_chart_response(natal_chart, sect=sect, include_pof=True)
+        natal = build_positions_from_chart_response(natal_chart)
         transits = build_positions_from_chart_response(transit_chart)
 
         engine = DailyTransitRuleEngine(sect=sect, minute_tolerance_arcmin=minute_tol_arcmin)
         hits = engine.run_daily(transits=transits, natal=natal)
 
         return {
-            "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+            "rules": {
+                "sect": sect,
+                "minute_tol_arcmin": minute_tol_arcmin,
+            },
             "hits": [h.to_json() for h in hits],
         }
-
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
 
