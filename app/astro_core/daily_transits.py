@@ -181,6 +181,9 @@ class TransitAspectHit:
     minute_exact_required: bool = False
     minute_exact_passed: bool = True
     notes: str = ""
+    
+    qualifies: bool = True
+    within_orb: Optional[bool] = None
 
     def to_json(self) -> Dict[str, Any]:
         d = asdict(self)
@@ -215,6 +218,16 @@ class DailyTransitRuleEngine:
             raise ValueError("sect must be 'diurnal' or 'nocturnal'")
         self.sect = sect
         self.minute_tol = float(minute_tolerance_arcmin)
+
+    def run_qualifying(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
+        hits = self.find_aspects(transits=transits, natal=natal, qualify=True)
+        hits = self.apply_mars_dominance(hits)
+        return self.rank_hits(hits)
+
+    def run_all(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
+        # do NOT apply Mars dominance here (you want "all aspects" unaltered)
+        hits = self.find_aspects(transits=transits, natal=natal, qualify=False)
+        return self.rank_hits(hits)
 
     # -------------------------
     # eligibility / constraints
@@ -283,7 +296,13 @@ class DailyTransitRuleEngine:
     # core aspect finding
     # -------------------------
 
-    def find_aspects(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
+    def find_aspects(
+        self,
+        transits: Dict[str, BodyPosition],
+        natal: Dict[str, BodyPosition],
+        *,
+        qualify: bool = True
+    ) -> List[TransitAspectHit]:
         hits: List[TransitAspectHit] = []
 
         transit_items = [(b, p) for b, p in transits.items() if self._eligible_transit_body(b)]
@@ -300,10 +319,11 @@ class DailyTransitRuleEngine:
                     err = aspect_error(t_pos.longitude, n_pos.longitude, aspect_angle)
                     abs_err = abs(err)
 
-                    # A) Minute-exact group: include only if minute-exact
+                    # A) Minute-exact group
                     if minute_required:
                         passed = is_minute_exact(abs_err, minute_tolerance_arcmin=self.minute_tol)
-                        if not passed:
+
+                        if qualify and not passed:
                             continue
 
                         hits.append(
@@ -316,40 +336,52 @@ class DailyTransitRuleEngine:
                                 applying=None,
                                 orb_used=None,
                                 minute_exact_required=True,
-                                minute_exact_passed=True,
-                                notes="minute-exact transit",
+                                minute_exact_passed=passed,
+                                qualifies=passed,
+                                within_orb=None,
+                                notes="minute-exact transit" if passed else "minute-exact required (did not pass)",
                             )
                         )
                         continue
 
-                    # B) Non-minute-exact group: use applying/separating + orb rules
+                    # B) Non-minute-exact group
                     applying = self._applying_or_separating(
                         transit_lon=t_pos.longitude,
                         transit_speed=t_pos.speed,
                         natal_lon=n_pos.longitude,
                         aspect_angle=aspect_angle,
                     )
+
                     orb = self._orb_for_non_exact(t_body, applying)
                     if orb is None:
                         continue
 
-                    if abs_err <= orb:
-                        hits.append(
-                            TransitAspectHit(
-                                transit_body=t_body,
-                                natal_point=n_point,
-                                aspect_name=aspect_name,
-                                aspect_angle=aspect_angle,
-                                error_deg=err,
-                                applying=applying,
-                                orb_used=orb,
-                                minute_exact_required=False,
-                                minute_exact_passed=True,
-                            )
+                    within_orb = abs_err <= orb
+                    qualifies_hit = within_orb
+
+                    if qualify and not qualifies_hit:
+                        continue
+
+                    hits.append(
+                        TransitAspectHit(
+                            transit_body=t_body,
+                            natal_point=n_point,
+                            aspect_name=aspect_name,
+                            aspect_angle=aspect_angle,
+                            error_deg=err,
+                            applying=applying,
+                            orb_used=orb,
+                            minute_exact_required=False,
+                            minute_exact_passed=True,
+                            qualifies=qualifies_hit,
+                            within_orb=within_orb,
+                            notes="within orb" if within_orb else "outside orb",
                         )
+                    )
 
         return hits
 
+        
     # -------------------------
     # Mars dominance (diurnal)
     # -------------------------
@@ -395,12 +427,6 @@ class DailyTransitRuleEngine:
             return (bucket, app_rank, abs(h.error_deg), h.transit_body, h.natal_point, h.aspect_angle)
 
         return sorted(hits, key=key)
-
-    def run_daily(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
-        hits = self.find_aspects(transits=transits, natal=natal)
-        hits = self.apply_mars_dominance(hits)
-        hits = self.rank_hits(hits)
-        return hits
         
 def build_positions_from_chart_response(chart: dict, *, sect: str) -> Dict[str, BodyPosition]:
     """

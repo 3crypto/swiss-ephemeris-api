@@ -31,7 +31,11 @@ async def log_requests(request: Request, call_next):
 # Swiss Ephemeris setup (expects /Desktop/swiss_api/ephe)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
-init_ephemeris(EPHE_PATH)
+
+@app.on_event("startup")
+def _startup():
+    init_ephemeris(EPHE_PATH)
+
 
 @app.get("/")
 def home():
@@ -101,6 +105,9 @@ def daily_transits(
     minute_tol_arcmin: float = 1.0,
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
+
+    # output mode
+    mode: str = "qualifying",  # "qualifying" | "all" | "both"
 ):
     try:
         natal_chart = compute_chart(
@@ -118,19 +125,39 @@ def daily_transits(
 
         natal = build_positions_from_chart_response(natal_chart, sect=sect)
         transits = build_positions_from_chart_response(transit_chart, sect=sect)
-        transits.pop("Part of Fortune", None)
-
+        transits.pop("Part of Fortune", None)  # natal-only receiver
 
         engine = DailyTransitRuleEngine(sect=sect, minute_tolerance_arcmin=minute_tol_arcmin)
-        hits = engine.run_daily(transits=transits, natal=natal)
 
-        return {
-            "rules": {
-                "sect": sect,
-                "minute_tol_arcmin": minute_tol_arcmin,
-            },
-            "hits": [h.to_json() for h in hits],
-        }
+        mode_norm = (mode or "qualifying").lower().strip()
+
+        if mode_norm == "qualifying":
+            hits = engine.run_qualifying(transits=transits, natal=natal)
+            return {
+                "mode": "qualifying",
+                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "hits": [h.to_json() for h in hits],
+            }
+
+        if mode_norm == "all":
+            hits = engine.run_all(transits=transits, natal=natal)
+            return {
+                "mode": "all",
+                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "hits": [h.to_json() for h in hits],
+            }
+
+        if mode_norm == "both":
+            qualifying = engine.run_qualifying(transits=transits, natal=natal)
+            all_hits = engine.run_all(transits=transits, natal=natal)
+            return {
+                "mode": "both",
+                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "qualifying_hits": [h.to_json() for h in qualifying],
+                "all_hits": [h.to_json() for h in all_hits],
+            }
+
+        raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
