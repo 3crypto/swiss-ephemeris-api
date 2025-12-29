@@ -149,10 +149,7 @@ def daily_transits(
             zodiac=zodiac, ayanamsa=ayanamsa,
         )
 
-        natal = build_positions_from_chart_response(natal_chart, sect=sect_used)
-        transits = build_positions_from_chart_response(transit_chart, sect=sect_used)
-        transits.pop("Part of Fortune", None)  # natal-only receiver
-
+        # 1) Determine sect_used FIRST
         sect_norm = (sect or "auto").lower().strip()
         if sect_norm == "auto":
             sect_used = sect_from_natal_chart(natal_chart)
@@ -161,7 +158,18 @@ def daily_transits(
                 raise HTTPException(status_code=400, detail="sect must be 'auto', 'diurnal', or 'nocturnal'")
             sect_used = sect_norm
 
-        engine = DailyTransitRuleEngine(sect=sect_used, minute_tolerance_arcmin=minute_tol_arcmin)
+        # 2) Build positions using the sect actually used
+        natal = build_positions_from_chart_response(natal_chart, sect=sect_used, include_pof=True)
+        transits = build_positions_from_chart_response(transit_chart, sect=sect_used, include_pof=False)
+
+
+        # 3) Ensure PoF is natal-only receiver (key must match your builder)
+        transits.pop("Part of Fortune", None)
+
+        engine = DailyTransitRuleEngine(
+            sect=sect_used,
+            minute_tolerance_arcmin=minute_tol_arcmin
+        )
 
         mode_norm = (mode or "qualifying").lower().strip()
 
@@ -169,7 +177,7 @@ def daily_transits(
             hits = engine.run_qualifying(transits=transits, natal=natal)
             return {
                 "mode": "qualifying",
-                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -177,7 +185,7 @@ def daily_transits(
             hits = engine.run_all(transits=transits, natal=natal)
             return {
                 "mode": "all",
-                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -186,12 +194,14 @@ def daily_transits(
             all_hits = engine.run_all(transits=transits, natal=natal)
             return {
                 "mode": "both",
-                "rules": {"sect": sect, "minute_tol_arcmin": minute_tol_arcmin},
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
                 "qualifying_hits": [h.to_json() for h in qualifying],
                 "all_hits": [h.to_json() for h in all_hits],
             }
 
         raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
