@@ -6,7 +6,10 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from .schemas import ChartResponse
 from .astro_core.settings import init_ephemeris
 from .astro_core.ephemeris import compute_chart
-from .astro_core.daily_transits import DailyTransitRuleEngine, build_positions_from_chart_response
+from .astro_core.daily_transits import (
+    DailyTransitRuleEngine,
+    build_positions_from_chart_response,  # now supports include_pof: bool = True
+)
 
 def sect_from_natal_chart(natal_chart: dict) -> str:
     """
@@ -54,7 +57,8 @@ async def log_requests(request: Request, call_next):
     print(f"STATUS {response.status_code} ct={ct} len={cl} ms={ms} path={request.url.path}")
     return response
 
-# Swiss Ephemeris setup (expects /Desktop/swiss_api/ephe)
+
+# Swiss Ephemeris setup (expects /.../swiss_api/ephe)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
 
@@ -70,6 +74,7 @@ def home():
 @app.api_route("/", methods=["HEAD"], include_in_schema=False)
 def home_head():
     return Response(status_code=200)
+
 
 @app.get("/chart", response_model=ChartResponse)
 def chart(
@@ -101,6 +106,7 @@ def chart(
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
 
 @app.get("/daily_transits")
 def daily_transits(
@@ -136,6 +142,7 @@ def daily_transits(
     mode: str = "qualifying",  # "qualifying" | "all" | "both"
 ):
     try:
+        # 1) Compute charts
         natal_chart = compute_chart(
             year=natal_year, month=natal_month, day=natal_day,
             hour=natal_hour, minute=natal_minute, second=natal_second,
@@ -149,7 +156,7 @@ def daily_transits(
             zodiac=zodiac, ayanamsa=ayanamsa,
         )
 
-        # 1) Determine sect_used FIRST
+        # 2) Determine sect_used BEFORE building positions (fixes your 400 error)
         sect_norm = (sect or "auto").lower().strip()
         if sect_norm == "auto":
             sect_used = sect_from_natal_chart(natal_chart)
@@ -158,19 +165,14 @@ def daily_transits(
                 raise HTTPException(status_code=400, detail="sect must be 'auto', 'diurnal', or 'nocturnal'")
             sect_used = sect_norm
 
-        # 2) Build positions using the sect actually used
+        # 3) Build positions
+        #    - PoF always included for natal
+        #    - PoF never included for transits
         natal = build_positions_from_chart_response(natal_chart, sect=sect_used, include_pof=True)
         transits = build_positions_from_chart_response(transit_chart, sect=sect_used, include_pof=False)
 
-
-        # 3) Ensure PoF is natal-only receiver (key must match your builder)
-        transits.pop("Part of Fortune", None)
-
-        engine = DailyTransitRuleEngine(
-            sect=sect_used,
-            minute_tolerance_arcmin=minute_tol_arcmin
-        )
-
+        # 4) Run engine
+        engine = DailyTransitRuleEngine(sect=sect_used, minute_tolerance_arcmin=minute_tol_arcmin)
         mode_norm = (mode or "qualifying").lower().strip()
 
         if mode_norm == "qualifying":
@@ -202,6 +204,11 @@ def daily_transits(
         raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
 
     except HTTPException:
+        # Preserve explicit HTTP errors
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+
+
