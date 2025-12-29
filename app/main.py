@@ -8,6 +8,32 @@ from .astro_core.settings import init_ephemeris
 from .astro_core.ephemeris import compute_chart
 from .astro_core.daily_transits import DailyTransitRuleEngine, build_positions_from_chart_response
 
+def sect_from_natal_chart(natal_chart: dict) -> str:
+    """
+    User-defined sect rule:
+      - Sun in houses 1–6  => nocturnal
+      - Sun in houses 7–12 => diurnal
+
+    Expects natal_chart from compute_chart() where:
+      natal_chart["bodies"]["sun"]["house_whole_sign"] exists.
+    """
+    bodies = natal_chart.get("bodies", {})
+    sun = bodies.get("sun")
+    if not sun:
+        raise ValueError("Cannot determine sect: natal_chart is missing bodies['sun'].")
+
+    house = sun.get("house_whole_sign")
+    if house is None:
+        raise ValueError("Cannot determine sect: natal_chart['bodies']['sun'] missing 'house_whole_sign'.")
+
+    house_i = int(house)
+    if 1 <= house_i <= 6:
+        return "nocturnal"
+    if 7 <= house_i <= 12:
+        return "diurnal"
+
+    raise ValueError(f"Cannot determine sect: invalid Sun house_whole_sign={house_i}.")
+
 
 app = FastAPI()
 
@@ -101,7 +127,7 @@ def daily_transits(
     transit_lon: float = Query(...),
 
     # rules inputs
-    sect: str = "diurnal",
+    sect: str = "auto",
     minute_tol_arcmin: float = 1.0,
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
@@ -123,11 +149,19 @@ def daily_transits(
             zodiac=zodiac, ayanamsa=ayanamsa,
         )
 
-        natal = build_positions_from_chart_response(natal_chart, sect=sect)
-        transits = build_positions_from_chart_response(transit_chart, sect=sect)
+        natal = build_positions_from_chart_response(natal_chart, sect=sect_used)
+        transits = build_positions_from_chart_response(transit_chart, sect=sect_used)
         transits.pop("Part of Fortune", None)  # natal-only receiver
 
-        engine = DailyTransitRuleEngine(sect=sect, minute_tolerance_arcmin=minute_tol_arcmin)
+        sect_norm = (sect or "auto").lower().strip()
+        if sect_norm == "auto":
+            sect_used = sect_from_natal_chart(natal_chart)
+        else:
+            if sect_norm not in {"diurnal", "nocturnal"}:
+                raise HTTPException(status_code=400, detail="sect must be 'auto', 'diurnal', or 'nocturnal'")
+            sect_used = sect_norm
+
+        engine = DailyTransitRuleEngine(sect=sect_used, minute_tolerance_arcmin=minute_tol_arcmin)
 
         mode_norm = (mode or "qualifying").lower().strip()
 
