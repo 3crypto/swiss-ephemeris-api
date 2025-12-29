@@ -1,11 +1,12 @@
 from typing import Dict
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from .math_utils import norm360, sign_index, planet_payload, format_lon_ddmm_sign
+
 
 import swisseph as swe
 
 from .constants import BODIES, AYANAMSA_MAP, SIGNS
-from .math_utils import norm360, sign_index, planet_payload
 
 
 def compute_chart(
@@ -35,7 +36,7 @@ def compute_chart(
     jd_ut = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day, ut_hour)
 
     # 2) Angles (tropical first)
-    _, ascmc = swe.houses_ex(jd_ut, lat, lon, b"P")
+    _, ascmc = swe.houses_ex(jd_ut, lat, lon, b"W")
     asc_trop = norm360(ascmc[0])
     mc_trop = norm360(ascmc[1])
 
@@ -98,10 +99,17 @@ def compute_chart(
         "angles": {
             "asc": float(asc),
             "asc_sign": asc_sign_name,
+            "asc_display": format_lon_ddmm_sign(asc),
+
             "dsc": float(dsc),
+            "dsc_display": format_lon_ddmm_sign(dsc),
+
             "mc": float(mc),
             "mc_sign": mc_sign_name,
+            "mc_display": format_lon_ddmm_sign(mc),
+
             "ic": float(ic),
+            "ic_display": format_lon_ddmm_sign(ic),
         },
         "bodies": bodies_out,
     }

@@ -22,6 +22,12 @@ class AnglesModel(BaseModel):
     mc_sign: str
     ic: float
 
+    # display-only fields
+    asc_display: Optional[str] = None
+    dsc_display: Optional[str] = None
+    mc_display: Optional[str] = None
+    ic_display: Optional[str] = None
+
 
 class BodyModel(BaseModel):
     longitude: float
