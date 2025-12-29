@@ -1,13 +1,19 @@
 from typing import Dict
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-from .math_utils import norm360, sign_index, planet_payload, format_lon_ddmm_sign
-
+from pathlib import Path
 
 import swisseph as swe
 
 from .constants import BODIES, AYANAMSA_MAP, SIGNS
+from .math_utils import norm360, sign_index, planet_payload, format_lon_ddmm_sign
 
+# -------------------------------------------------
+# Swiss Ephemeris initialization (RUNS ON IMPORT)
+# -------------------------------------------------
+EPHE_PATH = Path(__file__).resolve().parents[2] / "ephe"
+swe.set_ephe_path(str(EPHE_PATH))
+# -------------------------------------------------
 
 def compute_chart(
     *,
