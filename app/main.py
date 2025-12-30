@@ -190,6 +190,7 @@ def daily_transits(
                 "rules": {
                     "sect": sect_used,
                     "minute_tol_arcmin": minute_tol_arcmin,
+                },
                 "hits": [h.to_json() for h in hits],
             }
 
