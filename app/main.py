@@ -179,7 +179,8 @@ def daily_transits(
             hits = engine.run_qualifying(transits=transits, natal=natal)
             return {
                 "mode": "qualifying",
-                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin,
+                },
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -189,7 +190,8 @@ def daily_transits(
                 "mode": "all",
                 "rules": {
                     "sect": sect_used,
-                    "minute_tol_arcmin": minute_tol_arcmin},
+                    "minute_tol_arcmin": minute_tol_arcmin,
+                },
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -200,7 +202,8 @@ def daily_transits(
                 "mode": "both",
                 "rules": {
                     "sect": sect_used,
-                    "minute_tol_arcmin": minute_tol_arcmin},
+                    "minute_tol_arcmin": minute_tol_arcmin,
+                },
                 "qualifying_hits": [h.to_json() for h in qualifying],
                 "all_hits": [h.to_json() for h in all_hits],
             }
