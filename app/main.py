@@ -196,7 +196,6 @@ def daily_transits(
         if mode_norm == "both":
             qualifying = engine.run_qualifying(transits=transits, natal=natal)
             all_hits = engine.run_all(transits=transits, natal=natal)
-
             return {
                 "mode": "both",
                 "rules": {
