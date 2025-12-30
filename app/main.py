@@ -11,42 +11,6 @@ from .astro_core.daily_transits import (
     build_positions_from_chart_response,  # now supports include_pof: bool = True
 )
 
-# ----------------------------
-# Presentation-layer filtering
-# ----------------------------
-ALL_DISPLAY_MAX_ORB_DEG = 2.5
-
-def _extract_orb_deg(hit_json: dict) -> float | None:
-    """
-    Try to find an orb value (in degrees) in a hit JSON dict.
-    We do this on the serialized JSON so we don't need to know the hit object's internal attribute names.
-    """
-    # Most common keys
-    for k in ("orb", "orb_deg", "orb_degrees", "delta_deg", "distance_deg", "distance_from_exact_deg"):
-        v = hit_json.get(k)
-        if v is not None:
-            try:
-                return float(v)
-            except (TypeError, ValueError):
-                pass
-    return None
-
-def filter_all_hits_for_display(hit_json_list: list[dict], max_orb_deg: float = ALL_DISPLAY_MAX_ORB_DEG) -> list[dict]:
-    """
-    Filter the *display output* for mode='all' (and all_hits in mode='both') to keep only
-    aspects with orb <= max_orb_deg.
-
-    This does NOT change the rules engine or qualifying logic—only what the API returns to the user.
-    """
-    out = []
-    for hj in hit_json_list:
-        orb = _extract_orb_deg(hj)
-        # Safer rollout: if we can't find orb in a given hit, keep it (so we don't accidentally hide data).
-        if orb is None or orb <= max_orb_deg:
-            out.append(hj)
-    return out
-
-
 def sect_from_natal_chart(natal_chart: dict) -> str:
     """
     User-defined sect rule:
@@ -221,49 +185,25 @@ def daily_transits(
 
         if mode_norm == "all":
             hits = engine.run_all(transits=transits, natal=natal)
-
-            # Presentation-layer filtering only
-            hits_json = [h.to_json() for h in hits]
-            display_hits_json = filter_all_hits_for_display(hits_json, max_orb_deg=ALL_DISPLAY_MAX_ORB_DEG)
-
             return {
                 "mode": "all",
                 "rules": {
                     "sect": sect_used,
                     "minute_tol_arcmin": minute_tol_arcmin,
-                    "all_display_max_orb_deg": ALL_DISPLAY_MAX_ORB_DEG,
-                },
-                "counts": {
-                    "computed_all_hits": len(hits_json),
-                    "returned_all_hits": len(display_hits_json),
-                },
-                "hits": display_hits_json,
+                "hits": [h.to_json() for h in hits],
             }
 
         if mode_norm == "both":
             qualifying = engine.run_qualifying(transits=transits, natal=natal)
             all_hits = engine.run_all(transits=transits, natal=natal)
 
-            qualifying_json = [h.to_json() for h in qualifying]
-
-            # Presentation-layer filtering only for the "all" list
-            all_hits_json = [h.to_json() for h in all_hits]
-            display_all_hits_json = filter_all_hits_for_display(all_hits_json, max_orb_deg=ALL_DISPLAY_MAX_ORB_DEG)
-
             return {
                 "mode": "both",
                 "rules": {
                     "sect": sect_used,
                     "minute_tol_arcmin": minute_tol_arcmin,
-                    "all_display_max_orb_deg": ALL_DISPLAY_MAX_ORB_DEG,
-                },
-                "counts": {
-                    "computed_all_hits": len(all_hits_json),
-                    "returned_all_hits": len(display_all_hits_json),
-                    "qualifying_hits": len(qualifying_json),
-                },
-                "qualifying_hits": qualifying_json,
-                "all_hits": display_all_hits_json,
+                "qualifying_hits": [h.to_json() for h in qualifying],
+                "all_hits": [h.to_json() for h in all_hits],
             }
 
         raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
