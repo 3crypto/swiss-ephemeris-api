@@ -89,6 +89,7 @@ def chart(
     lon: float = Query(..., description="Longitude, e.g. -72.9279"),
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
+    sect: str = "auto",
 ):
     try:
         return compute_chart(
@@ -103,6 +104,7 @@ def chart(
             lon=lon,
             zodiac=zodiac,
             ayanamsa=ayanamsa,
+            sect=sect,
         )
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))

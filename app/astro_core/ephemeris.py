@@ -28,6 +28,7 @@ def compute_chart(
     lon: float,
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
+    sect: str = "auto",
 ) -> Dict:
     # 1) Local time -> UTC -> JD(UT)
     try:
@@ -90,6 +91,42 @@ def compute_chart(
             south_nodes_to_add["south_node_mean"] = planet_payload(norm360(lon_ecl + 180.0), asc_sign_idx)
 
     bodies_out.update(south_nodes_to_add)
+
+
+    # -------------------------
+    # Part of Fortune (PoF)
+    # -------------------------
+    # Sect rule (matches your app logic):
+    #   Sun in houses 1–6  => nocturnal
+    #   Sun in houses 7–12 => diurnal
+    sect_norm = (sect or "auto").lower().strip()
+
+    if sect_norm == "auto":
+        sun_house = bodies_out.get("sun", {}).get("house_whole_sign")
+        if sun_house is None:
+            sect_used = "diurnal"  # fallback; should not happen
+        else:
+            sun_house_i = int(sun_house)
+            sect_used = "nocturnal" if 1 <= sun_house_i <= 6 else "diurnal"
+    else:
+        if sect_norm not in {"diurnal", "nocturnal"}:
+            raise ValueError("sect must be 'auto', 'diurnal', or 'nocturnal'")
+        sect_used = sect_norm
+
+    sun_lon = bodies_out.get("sun", {}).get("lon")
+    moon_lon = bodies_out.get("moon", {}).get("lon")
+
+    if sun_lon is not None and moon_lon is not None:
+        if sect_used == "diurnal":
+            pof_lon = norm360(asc + moon_lon - sun_lon)
+        else:
+            pof_lon = norm360(asc + sun_lon - moon_lon)
+
+        pof_payload = planet_payload(pof_lon, asc_sign_idx)
+        pof_payload["speed"] = 0.0  # PoF is a calculated point
+
+        bodies_out["part_of_fortune"] = pof_payload
+
 
     return {
         "jd_utc": float(jd_ut),
