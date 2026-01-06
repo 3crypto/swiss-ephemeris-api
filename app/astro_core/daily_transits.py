@@ -72,7 +72,7 @@ class RULES:
     MINUTE_EXACT_TRANSITS = {"Saturn", "Uranus", "Neptune", "Pluto", "Chiron", "North Node"}
 
     # "Exact to degree AND minute" tolerance, arcminutes
-    MINUTE_TOL_ARCMIN = 1.0
+    MINUTE_TOL_ARCMIN = 1.59
 
     # Natal outer planets receiving rule (optional constraint you previously had)
     OUTER_NATAL = {"Saturn", "Uranus", "Neptune", "Pluto"}

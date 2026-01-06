@@ -136,7 +136,7 @@ def daily_transits(
 
     # rules inputs
     sect: str = "auto",
-    minute_tol_arcmin: float = 1.0,
+    minute_tol_arcmin: float = 1.59,
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
 
