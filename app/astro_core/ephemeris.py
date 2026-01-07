@@ -15,6 +15,25 @@ EPHE_PATH = Path(__file__).resolve().parents[2] / "ephe"
 swe.set_ephe_path(str(EPHE_PATH))
 # -------------------------------------------------
 
+def sect_from_sun_altitude(jd_ut: float, lat: float, lon: float) -> str:
+    """
+    True sect:
+      - diurnal if Sun altitude > 0°
+      - nocturnal if Sun altitude <= 0°
+    Uses Swiss Ephemeris equatorial coordinates + azalt.
+    """
+    # Sun equatorial coordinates (RA/Dec)
+    xx, _ = swe.calc_ut(jd_ut, swe.SUN, swe.FLG_SWIEPH | swe.FLG_EQUATORIAL)
+    ra = float(xx[0])
+    dec = float(xx[1])
+    dist = float(xx[2])
+
+    geopos = [float(lon), float(lat), 0.0]  # lon, lat, altitude(m)
+    # returns: azimuth, true altitude, apparent altitude
+    az, true_alt, app_alt = swe.azalt(jd_ut, swe.EQU2HOR, geopos, 0.0, 0.0, [ra, dec, dist])
+
+    return "diurnal" if true_alt > 0.0 else "nocturnal"
+
 def compute_chart(
     *,
     year: int,
@@ -96,18 +115,11 @@ def compute_chart(
     # -------------------------
     # Part of Fortune (PoF)
     # -------------------------
-    # Sect rule (matches your app logic):
-    #   Sun in houses 1–6  => nocturnal
-    #   Sun in houses 7–12 => diurnal
+    # Sect (TRUE: Sun altitude)
     sect_norm = (sect or "auto").lower().strip()
 
     if sect_norm == "auto":
-        sun_house = bodies_out.get("sun", {}).get("house_whole_sign")
-        if sun_house is None:
-            sect_used = "diurnal"  # fallback; should not happen
-        else:
-            sun_house_i = int(sun_house)
-            sect_used = "nocturnal" if 1 <= sun_house_i <= 6 else "diurnal"
+        sect_used = sect_from_sun_altitude(jd_ut, lat, lon)
     else:
         if sect_norm not in {"diurnal", "nocturnal"}:
             raise ValueError("sect must be 'auto', 'diurnal', or 'nocturnal'")
@@ -135,6 +147,7 @@ def compute_chart(
         "dt_utc": dt_utc.isoformat(),
         "location": {"lat": float(lat), "lon": float(lon)},
         "zodiac": zodiac,
+        "sect": sect_used,
         "ayanamsa": {
             "name": ayanamsa if zodiac == "sidereal" else None,
             "degrees": ay_deg,
