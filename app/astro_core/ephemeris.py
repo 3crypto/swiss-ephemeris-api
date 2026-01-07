@@ -113,8 +113,8 @@ def compute_chart(
             raise ValueError("sect must be 'auto', 'diurnal', or 'nocturnal'")
         sect_used = sect_norm
 
-    sun_lon = bodies_out.get("sun", {}).get("lon")
-    moon_lon = bodies_out.get("moon", {}).get("lon")
+    sun_lon = bodies_out.get("sun", {}).get("longitude")
+    moon_lon = bodies_out.get("moon", {}).get("longitude")
 
     if sun_lon is not None and moon_lon is not None:
         if sect_used == "diurnal":
