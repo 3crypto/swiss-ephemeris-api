@@ -112,16 +112,10 @@ def format_sign_degree(deg: float) -> str:
     deg_in_sign = deg - sign_index * 30
 
     whole_deg = int(math.floor(deg_in_sign))
-    minutes = int(round((deg_in_sign - whole_deg) * 60.0))
-
-    if minutes == 60:
-        minutes = 0
-        whole_deg += 1
-    if whole_deg == 30:
-        whole_deg = 0
-        sign_index = (sign_index + 1) % 12
+    minutes = int((deg_in_sign - whole_deg) * 60.0)  # truncate, don't round
 
     return f"{SIGNS[sign_index]} {whole_deg}°{minutes:02d}′"
+
 
 def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]:
     asc = norm360(asc_deg)
@@ -200,12 +194,8 @@ def _format_error_minutes(error_deg: float) -> str:
     sign = "+" if error_deg >= 0 else "-"
     d_abs = abs(error_deg)
     whole = int(math.floor(d_abs))
-    minutes = int(round((d_abs - whole) * 60.0))
-    if minutes == 60:
-        minutes = 0
-        whole += 1
+    minutes = int((d_abs - whole) * 60.0)  # truncate, don't round
     return f"{sign}{whole}°{minutes:02d}′"
-
 
 # =============================================================================
 # Rule engine
