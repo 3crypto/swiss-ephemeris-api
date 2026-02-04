@@ -28,6 +28,12 @@ class AnglesModel(BaseModel):
     mc_display: Optional[str] = None
     ic_display: Optional[str] = None
 
+    # NEW: Whole Sign house numbers
+    asc_house_whole_sign: Optional[int] = None
+    dsc_house_whole_sign: Optional[int] = None
+    mc_house_whole_sign: Optional[int] = None
+    ic_house_whole_sign: Optional[int] = None
+
 
 class BodyModel(BaseModel):
     longitude: float

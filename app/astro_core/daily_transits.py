@@ -123,25 +123,36 @@ def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]
     dsc = norm360(asc + 180.0)
     ic = norm360(mc + 180.0)
 
-    # Whole Sign houses are defined relative to ASC sign
-    asc_house = 1  # always 1 by definition in Whole Sign
+    # Signs
+    asc_sign = SIGNS[int(asc // 30)]
+    mc_sign  = SIGNS[int(mc // 30)]
+
+    # Whole Sign houses relative to ASC sign
+    asc_house = 1
+    dsc_house = 7
     mc_house  = whole_sign_house(asc, mc)
-    dsc_house = whole_sign_house(asc, dsc)  # will always be 7 in Whole Sign
     ic_house  = whole_sign_house(asc, ic)
 
     return {
-        "asc": asc, "mc": mc, "dsc": dsc, "ic": ic,
+        "asc": asc,
+        "dsc": dsc,
+        "mc": mc,
+        "ic": ic,
 
-        "asc_fmt": format_sign_degree(asc),
-        "mc_fmt": format_sign_degree(mc),
-        "dsc_fmt": format_sign_degree(dsc),
-        "ic_fmt": format_sign_degree(ic),
+        "asc_sign": asc_sign,
+        "mc_sign": mc_sign,
 
-        # Add house numbers
-        "asc_house": asc_house,
-        "mc_house": mc_house,
-        "dsc_house": dsc_house,
-        "ic_house": ic_house,
+        # display-only fields (your schema names)
+        "asc_display": format_sign_degree(asc),
+        "dsc_display": format_sign_degree(dsc),
+        "mc_display": format_sign_degree(mc),
+        "ic_display": format_sign_degree(ic),
+
+        # NEW fields (use same naming convention as bodies)
+        "asc_house_whole_sign": asc_house,
+        "dsc_house_whole_sign": dsc_house,
+        "mc_house_whole_sign": mc_house,
+        "ic_house_whole_sign": ic_house,
     }
 
 def calc_part_of_fortune(asc_lon: float, sun_lon: float, moon_lon: float, sect: str) -> float:

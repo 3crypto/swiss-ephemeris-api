@@ -2,6 +2,7 @@ from typing import Dict
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
+from .daily_transits import calc_angles_from_longitudes
 
 import swisseph as swe
 
@@ -139,6 +140,7 @@ def compute_chart(
 
         bodies_out["part_of_fortune"] = pof_payload
 
+    angles_out = calc_angles_from_longitudes(asc_deg=asc, mc_deg=mc)
 
     return {
         "jd_utc": float(jd_ut),
@@ -152,20 +154,7 @@ def compute_chart(
             "name": ayanamsa if zodiac == "sidereal" else None,
             "degrees": ay_deg,
         },
-        "angles": {
-            "asc": float(asc),
-            "asc_sign": asc_sign_name,
-            "asc_display": format_lon_ddmm_sign(asc),
-
-            "dsc": float(dsc),
-            "dsc_display": format_lon_ddmm_sign(dsc),
-
-            "mc": float(mc),
-            "mc_sign": mc_sign_name,
-            "mc_display": format_lon_ddmm_sign(mc),
-
-            "ic": float(ic),
-            "ic_display": format_lon_ddmm_sign(ic),
-        },
+        "angles": angles_out,
         "bodies": bodies_out,
     }
+
