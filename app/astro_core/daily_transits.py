@@ -122,12 +122,26 @@ def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]
     mc = norm360(mc_deg)
     dsc = norm360(asc + 180.0)
     ic = norm360(mc + 180.0)
+
+    # Whole Sign houses are defined relative to ASC sign
+    asc_house = 1  # always 1 by definition in Whole Sign
+    mc_house  = whole_sign_house(asc, mc)
+    dsc_house = whole_sign_house(asc, dsc)  # will always be 7 in Whole Sign
+    ic_house  = whole_sign_house(asc, ic)
+
     return {
         "asc": asc, "mc": mc, "dsc": dsc, "ic": ic,
+
         "asc_fmt": format_sign_degree(asc),
         "mc_fmt": format_sign_degree(mc),
         "dsc_fmt": format_sign_degree(dsc),
         "ic_fmt": format_sign_degree(ic),
+
+        # Add house numbers
+        "asc_house": asc_house,
+        "mc_house": mc_house,
+        "dsc_house": dsc_house,
+        "ic_house": ic_house,
     }
 
 def calc_part_of_fortune(asc_lon: float, sun_lon: float, moon_lon: float, sect: str) -> float:
