@@ -591,7 +591,8 @@ def serialize_positions(
             "longitude": float(pos.longitude),
             "speed": None if pos.speed is None else float(pos.speed),
             "display": format_sign_degree(float(pos.longitude)),
-            "house": whole_sign_house(ascendant_lon, pos.longitude),
+            "house": whole_sign_house(float(ascendant_lon), float(pos.longitude)),
         }
         for name, pos in positions.items()
     }
+

@@ -180,29 +180,47 @@ def daily_transits(
 
         if mode_norm == "qualifying":
             hits = engine.run_qualifying(transits=transits, natal=natal)
+
+            natal_asc = natal["Ascendant"].longitude
+
             return {
                 "mode": "qualifying",
                 "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits),
+                "transits": serialize_positions(
+                    transits,
+                    ascendant_lon=natal_asc
+                ),
                 "hits": [h.to_json() for h in hits],
             }
 
         if mode_norm == "all":
             hits = engine.run_all(transits=transits, natal=natal)
+
+            natal_asc = natal["Ascendant"].longitude
+
             return {
                 "mode": "all",
                 "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits),
+                "transits": serialize_positions(
+                    transits,
+                    ascendant_lon=natal_asc
+                ),
                 "hits": [h.to_json() for h in hits],
             }
 
         if mode_norm == "both":
             qualifying = engine.run_qualifying(transits=transits, natal=natal)
             all_hits = engine.run_all(transits=transits, natal=natal)
+
+            natal_asc = natal["Ascendant"].longitude
+
             return {
                 "mode": "both",
                 "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits),
+                "transits": serialize_positions(
+                    transits,
+                    ascendant_lon=natal_asc
+                ),
                 "qualifying_hits": [h.to_json() for h in qualifying],
                 "all_hits": [h.to_json() for h in all_hits],
             }
