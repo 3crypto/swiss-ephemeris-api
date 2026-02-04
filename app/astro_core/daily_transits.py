@@ -6,9 +6,8 @@ Daily Transit Rules — Rule-first implementation (hybrid)
   - orb depends on applying vs separating (per RULES.ORB_RULES)
 
 - Minute-exact group (Saturn, Uranus, Neptune, Pluto, Chiron, North Node):
-  - must be "exact to degree+minute" (within RULES.MINUTE_TOL_ARCMIN)
+  - qualifying mode: must be "exact to degree+minute" (within RULES.MINUTE_TOL_ARCMIN)
   - applying/separating is not required and is not used to gate inclusion
-  - orbs are optional here; this implementation gates only by minute-exactness
 
 Other:
 - Moon excluded as transiting body; South Node excluded
@@ -16,12 +15,17 @@ Other:
 - Aspects: major + quincunx only
 - Degree-accurate geometry
 - Mars dominance (diurnal): if Mars hits a natal point, suppress other hits to that natal point
+
+NEW:
+- "All" mode = anything within a flat 3° orb (RULES.ALL_ORB_DEG)
+  - no minute-exact gating
+  - no applying/separating orbs required
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, asdict
-from typing import Dict, List, Optional, Tuple, Any
+from typing import Dict, List, Optional, Any
 import math
 
 
@@ -58,7 +62,7 @@ class RULES:
         "quincunx": 150.0,
     }
 
-    # Applying vs separating orb rules (only used for non-minute-exact bodies)
+    # Applying vs separating orb rules (only used for qualifying mode on non-minute-exact bodies)
     # (applying_orb_deg, separating_orb_deg)
     ORB_RULES = {
         "Sun": (2.0, 1.0),
@@ -68,11 +72,14 @@ class RULES:
         "Mercury": (2.5, 1.0),
     }
 
-    # Minute-exact-only transiting bodies
+    # Minute-exact-only transiting bodies (qualifying mode only)
     MINUTE_EXACT_TRANSITS = {"Saturn", "Uranus", "Neptune", "Pluto", "Chiron", "North Node"}
 
-    # "Exact to degree AND minute" tolerance, arcminutes
+    # "Exact to degree AND minute" tolerance, arcminutes (qualifying mode only)
     MINUTE_TOL_ARCMIN = 1.59
+
+    # "All aspects" mode: include anything within this flat orb (degrees)
+    ALL_ORB_DEG = 3.0
 
     # Natal outer planets receiving rule (optional constraint you previously had)
     OUTER_NATAL = {"Saturn", "Uranus", "Neptune", "Pluto"}
@@ -103,8 +110,8 @@ def aspect_error(transit_lon: float, natal_lon: float, aspect_deg: float) -> flo
     sep = angular_distance(transit_lon, natal_lon)
     return sep - aspect_deg
 
-def is_minute_exact(error_deg: float, minute_tolerance_arcmin: float) -> bool:
-    return abs(error_deg) <= (minute_tolerance_arcmin / 60.0)
+def is_minute_exact(abs_error_deg: float, minute_tolerance_arcmin: float) -> bool:
+    return abs_error_deg <= (minute_tolerance_arcmin / 60.0)
 
 def format_sign_degree(deg: float) -> str:
     deg = norm360(deg)
@@ -113,9 +120,12 @@ def format_sign_degree(deg: float) -> str:
 
     whole_deg = int(math.floor(deg_in_sign))
     minutes = int((deg_in_sign - whole_deg) * 60.0)  # truncate, don't round
-
     return f"{SIGNS[sign_index]} {whole_deg}°{minutes:02d}′"
 
+def whole_sign_house(asc_lon: float, point_lon: float) -> int:
+    asc_sign_idx = int(norm360(asc_lon) // 30)
+    pt_sign_idx = int(norm360(point_lon) // 30)
+    return ((pt_sign_idx - asc_sign_idx) % 12) + 1
 
 def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]:
     asc = norm360(asc_deg)
@@ -123,11 +133,9 @@ def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]
     dsc = norm360(asc + 180.0)
     ic = norm360(mc + 180.0)
 
-    # Signs
     asc_sign = SIGNS[int(asc // 30)]
     mc_sign  = SIGNS[int(mc // 30)]
 
-    # Whole Sign houses relative to ASC sign
     asc_house = 1
     dsc_house = 7
     mc_house  = whole_sign_house(asc, mc)
@@ -142,13 +150,11 @@ def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]
         "asc_sign": asc_sign,
         "mc_sign": mc_sign,
 
-        # display-only fields (your schema names)
         "asc_display": format_sign_degree(asc),
         "dsc_display": format_sign_degree(dsc),
         "mc_display": format_sign_degree(mc),
         "ic_display": format_sign_degree(ic),
 
-        # NEW fields (use same naming convention as bodies)
         "asc_house_whole_sign": asc_house,
         "dsc_house_whole_sign": dsc_house,
         "mc_house_whole_sign": mc_house,
@@ -168,11 +174,6 @@ def calc_part_of_fortune(asc_lon: float, sun_lon: float, moon_lon: float, sect: 
 def calc_part_of_fortune_formatted(asc_lon: float, sun_lon: float, moon_lon: float, sect: str) -> str:
     return format_sign_degree(calc_part_of_fortune(asc_lon, sun_lon, moon_lon, sect))
 
-def whole_sign_house(asc_lon: float, point_lon: float) -> int:
-    asc_sign_idx = int(norm360(asc_lon) // 30)
-    pt_sign_idx = int(norm360(point_lon) // 30)
-    return ((pt_sign_idx - asc_sign_idx) % 12) + 1
-
 
 # =============================================================================
 # Data models
@@ -191,16 +192,18 @@ class TransitAspectHit:
     aspect_angle: float
     error_deg: float
 
-    # applying/separating is only relevant for non-minute-exact bodies
+    # applying/separating is only relevant for qualifying mode on non-minute-exact bodies
     applying: Optional[bool] = None
 
-    # For non-minute-exact bodies, orb_used is the allowed orb (applying or separating)
+    # orb_used:
+    # - qualifying mode: applying/separating orb for non-minute-exact bodies; None for minute-exact bodies
+    # - all_3deg mode: flat orb (RULES.ALL_ORB_DEG)
     orb_used: Optional[float] = None
 
     minute_exact_required: bool = False
     minute_exact_passed: bool = True
     notes: str = ""
-    
+
     qualifies: bool = True
     within_orb: Optional[bool] = None
 
@@ -222,6 +225,7 @@ def _format_error_minutes(error_deg: float) -> str:
     minutes = int((d_abs - whole) * 60.0)  # truncate, don't round
     return f"{sign}{whole}°{minutes:02d}′"
 
+
 # =============================================================================
 # Rule engine
 # =============================================================================
@@ -235,13 +239,16 @@ class DailyTransitRuleEngine:
         self.minute_tol = float(minute_tolerance_arcmin)
 
     def run_qualifying(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
-        hits = self.find_aspects(transits=transits, natal=natal, qualify=True)
+        hits = self.find_aspects(transits=transits, natal=natal, qualify=True, mode="qualifying")
         hits = self.apply_mars_dominance(hits)
         return self.rank_hits(hits)
 
     def run_all(self, transits: Dict[str, BodyPosition], natal: Dict[str, BodyPosition]) -> List[TransitAspectHit]:
-        # do NOT apply Mars dominance here (you want "all aspects" unaltered)
-        hits = self.find_aspects(transits=transits, natal=natal, qualify=False)
+        """
+        "All" = any hit within RULES.ALL_ORB_DEG (flat orb),
+        with NO minute-exact gating and NO applying/separating orb rules.
+        """
+        hits = self.find_aspects(transits=transits, natal=natal, qualify=False, mode="all_3deg")
         return self.rank_hits(hits)
 
     # -------------------------
@@ -262,6 +269,7 @@ class DailyTransitRuleEngine:
         return True
 
     def _minute_exact_required(self, transit_body: str) -> bool:
+        # Only relevant in qualifying mode; all_3deg ignores minute-exact gating.
         return transit_body in RULES.MINUTE_EXACT_TRANSITS
 
     # -------------------------
@@ -295,9 +303,9 @@ class DailyTransitRuleEngine:
             return False
         return True
 
-    def _orb_for_non_exact(self, transit_body: str, applying: Optional[bool]) -> Optional[float]:
+    def _orb_for_non_exact_qualifying(self, transit_body: str, applying: Optional[bool]) -> Optional[float]:
         """
-        For non-minute-exact bodies only.
+        Qualifying mode only (non-minute-exact bodies).
         Uses applying/separating orb rules. If applying is unknown, uses the tighter orb.
         """
         if transit_body not in RULES.ORB_RULES:
@@ -316,8 +324,12 @@ class DailyTransitRuleEngine:
         transits: Dict[str, BodyPosition],
         natal: Dict[str, BodyPosition],
         *,
-        qualify: bool = True
+        qualify: bool = True,
+        mode: str = "qualifying",  # "qualifying" | "all_3deg"
     ) -> List[TransitAspectHit]:
+        if mode not in {"qualifying", "all_3deg"}:
+            raise ValueError("mode must be 'qualifying' or 'all_3deg'")
+
         hits: List[TransitAspectHit] = []
 
         transit_items = [(b, p) for b, p in transits.items() if self._eligible_transit_body(b)]
@@ -334,10 +346,34 @@ class DailyTransitRuleEngine:
                     err = aspect_error(t_pos.longitude, n_pos.longitude, aspect_angle)
                     abs_err = abs(err)
 
-                    # A) Minute-exact group
+                    # A) Minute-exact bodies
                     if minute_required:
-                        passed = is_minute_exact(abs_err, minute_tolerance_arcmin=self.minute_tol)
+                        if mode == "all_3deg":
+                            # In "all" mode, minute-exact is NOT required. Flat orb only.
+                            within_orb = abs_err <= RULES.ALL_ORB_DEG
+                            if not within_orb:
+                                continue
 
+                            hits.append(
+                                TransitAspectHit(
+                                    transit_body=t_body,
+                                    natal_point=n_point,
+                                    aspect_name=aspect_name,
+                                    aspect_angle=aspect_angle,
+                                    error_deg=err,
+                                    applying=None,
+                                    orb_used=RULES.ALL_ORB_DEG,
+                                    minute_exact_required=False,
+                                    minute_exact_passed=True,
+                                    qualifies=True,
+                                    within_orb=True,
+                                    notes=f"all-mode: within {RULES.ALL_ORB_DEG}° orb",
+                                )
+                            )
+                            continue
+
+                        # qualifying mode: enforce minute-exact
+                        passed = is_minute_exact(abs_err, minute_tolerance_arcmin=self.minute_tol)
                         if qualify and not passed:
                             continue
 
@@ -359,7 +395,32 @@ class DailyTransitRuleEngine:
                         )
                         continue
 
-                    # B) Non-minute-exact group
+                    # B) Non-minute-exact bodies
+                    if mode == "all_3deg":
+                        # Flat orb, no applying/separating required
+                        within_orb = abs_err <= RULES.ALL_ORB_DEG
+                        if not within_orb:
+                            continue
+
+                        hits.append(
+                            TransitAspectHit(
+                                transit_body=t_body,
+                                natal_point=n_point,
+                                aspect_name=aspect_name,
+                                aspect_angle=aspect_angle,
+                                error_deg=err,
+                                applying=None,
+                                orb_used=RULES.ALL_ORB_DEG,
+                                minute_exact_required=False,
+                                minute_exact_passed=True,
+                                qualifies=True,
+                                within_orb=True,
+                                notes=f"all-mode: within {RULES.ALL_ORB_DEG}° orb",
+                            )
+                        )
+                        continue
+
+                    # qualifying mode: applying/separating + body-specific orbs
                     applying = self._applying_or_separating(
                         transit_lon=t_pos.longitude,
                         transit_speed=t_pos.speed,
@@ -367,7 +428,7 @@ class DailyTransitRuleEngine:
                         aspect_angle=aspect_angle,
                     )
 
-                    orb = self._orb_for_non_exact(t_body, applying)
+                    orb = self._orb_for_non_exact_qualifying(t_body, applying)
                     if orb is None:
                         continue
 
@@ -396,7 +457,6 @@ class DailyTransitRuleEngine:
 
         return hits
 
-        
     # -------------------------
     # Mars dominance (diurnal)
     # -------------------------
@@ -442,9 +502,13 @@ class DailyTransitRuleEngine:
             return (bucket, app_rank, abs(h.error_deg), h.transit_body, h.natal_point, h.aspect_angle)
 
         return sorted(hits, key=key)
-        
-def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: bool = True) -> Dict[str, BodyPosition]:
 
+
+# =============================================================================
+# Adapter: /chart response -> positions dict
+# =============================================================================
+
+def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: bool = True) -> Dict[str, BodyPosition]:
     """
     Convert your /chart JSON into the {Name: BodyPosition} dict
     expected by DailyTransitRuleEngine.
@@ -483,7 +547,6 @@ def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: 
     for k, name in key_map.items():
         if k in bodies:
             lon = float(bodies[k]["longitude"])
-            # speed is optional; include it later if you add speed to /chart output
             out[name] = BodyPosition(longitude=lon, speed=bodies[k].get("speed"))
 
     # Angles
@@ -492,7 +555,7 @@ def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: 
     if "mc" in angles:
         out["Midheaven"] = BodyPosition(longitude=float(angles["mc"]))
 
-    # Part of Fortune (natal point) — include by default
+    # Part of Fortune (natal point)
     if include_pof:
         if sect is None:
             raise ValueError("sect is required to compute Part of Fortune ('diurnal' or 'nocturnal')")
