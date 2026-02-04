@@ -8,7 +8,8 @@ from .astro_core.settings import init_ephemeris
 from .astro_core.ephemeris import compute_chart
 from .astro_core.daily_transits import (
     DailyTransitRuleEngine,
-    build_positions_from_chart_response,  # now supports include_pof: bool = True
+    build_positions_from_chart_response,
+    serialize_positions,
 )
 
 def sect_from_natal_chart(natal_chart: dict) -> str:
@@ -181,8 +182,8 @@ def daily_transits(
             hits = engine.run_qualifying(transits=transits, natal=natal)
             return {
                 "mode": "qualifying",
-                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin,
-                },
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+                "transits": serialize_positions(transits),
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -190,10 +191,8 @@ def daily_transits(
             hits = engine.run_all(transits=transits, natal=natal)
             return {
                 "mode": "all",
-                "rules": {
-                    "sect": sect_used,
-                    "minute_tol_arcmin": minute_tol_arcmin,
-                },
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+                "transits": serialize_positions(transits),
                 "hits": [h.to_json() for h in hits],
             }
 
@@ -202,10 +201,8 @@ def daily_transits(
             all_hits = engine.run_all(transits=transits, natal=natal)
             return {
                 "mode": "both",
-                "rules": {
-                    "sect": sect_used,
-                    "minute_tol_arcmin": minute_tol_arcmin,
-                },
+                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+                "transits": serialize_positions(transits),
                 "qualifying_hits": [h.to_json() for h in qualifying],
                 "all_hits": [h.to_json() for h in all_hits],
             }

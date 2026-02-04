@@ -580,3 +580,13 @@ def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: 
         out["Part of Fortune"] = BodyPosition(longitude=float(pof_lon))
 
     return out
+
+def serialize_positions(positions: Dict[str, BodyPosition]) -> Dict[str, Dict[str, Any]]:
+    return {
+        name: {
+            "longitude": float(pos.longitude),
+            "speed": None if pos.speed is None else float(pos.speed),
+            "display": format_sign_degree(float(pos.longitude)),
+        }
+        for name, pos in positions.items()
+    }
