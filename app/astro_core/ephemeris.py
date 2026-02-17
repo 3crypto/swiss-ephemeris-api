@@ -7,7 +7,7 @@ from .daily_transits import calc_angles_from_longitudes
 import swisseph as swe
 
 from .constants import BODIES, AYANAMSA_MAP, SIGNS
-from .math_utils import norm360, sign_index, planet_payload, format_lon_ddmm_sign
+from .math_utils import norm360, sign_index, planet_payload, format_lon_ddmmss_sign
 
 # -------------------------------------------------
 # Swiss Ephemeris initialization (RUNS ON IMPORT)
