@@ -34,14 +34,18 @@ def planet_payload(lon: float, asc_sign_idx: int) -> Dict:
         "display": f"{format_deg_sign(lon)} (House {house})",
     }
 
-# NEW: angle formatter (TRUNCATES minutes, includes true prime symbol)
-def format_lon_ddmm_sign(lon: float) -> str:
+def format_lon_ddmmss_sign(lon: float) -> str:
     lon = norm360(lon)
     sidx = sign_index(lon)
     sign = SIGNS[sidx]
 
     within = lon - (sidx * 30.0)
     deg = int(within)
-    minutes = int((within - deg) * 60.0)  # truncate, don't round
+    minutes_full = (within - deg) * 60.0
+    minutes = int(minutes_full)
 
-    return f"{deg}°{minutes:02d}′ {sign}"
+    seconds_full = (minutes_full - minutes) * 60.0
+    seconds = int(seconds_full)  # truncate, do not round
+
+    return f"{deg}°{minutes:02d}′{seconds:02d}″ {sign}"
+
