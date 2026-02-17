@@ -97,11 +97,7 @@ def compute_chart(
     south_nodes_to_add: Dict[str, Dict] = {}
 
     for name, code in BODIES.items():
-        xx, serr = swe.calc_ut(jd_ut, code, flags | swe.FLG_SPEED)
-
-        if serr:
-            print(f"{name} serr:", serr)
-
+        xx, _ = swe.calc_ut(jd_ut, code, flags | swe.FLG_SPEED)
         lon_ecl = norm360(xx[0])
         speed = float(xx[3])  # deg/day
 
