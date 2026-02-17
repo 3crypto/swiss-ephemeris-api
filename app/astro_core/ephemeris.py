@@ -97,7 +97,11 @@ def compute_chart(
     south_nodes_to_add: Dict[str, Dict] = {}
 
     for name, code in BODIES.items():
-        xx, _ = swe.calc_ut(jd_ut, code, flags | swe.FLG_SPEED)
+        xx, serr = swe.calc_ut(jd_ut, code, flags | swe.FLG_SPEED)
+
+        if serr:
+            print(f"{name} serr:", serr)
+
         lon_ecl = norm360(xx[0])
         speed = float(xx[3])  # deg/day
 
@@ -111,7 +115,6 @@ def compute_chart(
             south_nodes_to_add["south_node_mean"] = planet_payload(norm360(lon_ecl + 180.0), asc_sign_idx)
 
     bodies_out.update(south_nodes_to_add)
-
 
     # -------------------------
     # Part of Fortune (PoF)
