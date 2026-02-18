@@ -47,7 +47,7 @@ def format_lon_ddmmss_sign(lon: float) -> str:
     seconds_full = (minutes_full - minutes) * 60.0
     
 # ROUND HALF UP (only for seconds)
-    sec = int(math.floor(seconds_full + 0.5))
+    sec = int(seconds_full + 0.5))
 
     # rollover only if seconds hit 60
     if sec == 60:
