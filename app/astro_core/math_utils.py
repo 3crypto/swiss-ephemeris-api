@@ -36,20 +36,21 @@ def planet_payload(lon: float, asc_sign_idx: int) -> Dict:
 
 def format_lon_ddmmss_sign(lon: float) -> str:
     lon = norm360(lon)
+
     sidx = sign_index(lon)
     sign = SIGNS[sidx]
 
     within = lon - (sidx * 30.0)
+
     deg = int(within)
+
     minutes_full = (within - deg) * 60.0
-    minutes = int(minutes_full)
+    minute = int(minutes_full)   # ← MUST be outside any if block
 
-    seconds_full = (minutes_full - minutes) * 60.0
-    
-# ROUND HALF UP (only for seconds)
-    sec = int(seconds_full + 0.5)
+    seconds_full = (minutes_full - minute) * 60.0
 
-    # rollover only if seconds hit 60
+    sec = int(seconds_full + 0.5)  # round half up
+
     if sec == 60:
         sec = 0
         minute += 1
