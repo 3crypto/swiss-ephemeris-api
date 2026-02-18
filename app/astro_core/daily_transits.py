@@ -27,6 +27,7 @@ from __future__ import annotations
 from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 import math
+from .math_utils import format_lon_ddmmss_sign
 
 
 # =============================================================================
@@ -149,11 +150,12 @@ def calc_angles_from_longitudes(asc_deg: float, mc_deg: float) -> Dict[str, Any]
 
         "asc_sign": asc_sign,
         "mc_sign": mc_sign,
+        
+        "asc_display": format_lon_ddmmss_sign(asc),
+        "dsc_display": format_lon_ddmmss_sign(dsc),
+        "mc_display": format_lon_ddmmss_sign(mc),
+        "ic_display": format_lon_ddmmss_sign(ic),
 
-        "asc_display": format_sign_degree(asc),
-        "dsc_display": format_sign_degree(dsc),
-        "mc_display": format_sign_degree(mc),
-        "ic_display": format_sign_degree(ic),
 
         "asc_house_whole_sign": asc_house,
         "dsc_house_whole_sign": dsc_house,
