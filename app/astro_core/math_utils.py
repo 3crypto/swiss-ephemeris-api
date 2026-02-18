@@ -45,7 +45,22 @@ def format_lon_ddmmss_sign(lon: float) -> str:
     minutes = int(minutes_full)
 
     seconds_full = (minutes_full - minutes) * 60.0
-    seconds = int(seconds_full)  # truncate, do not round
-
-    return f"{deg}°{minutes:02d}′{seconds:02d}″ {sign}"
     
+# ROUND HALF UP (only for seconds)
+    sec = int(math.floor(seconds_full + 0.5))
+
+    # rollover only if seconds hit 60
+    if sec == 60:
+        sec = 0
+        minute += 1
+
+    if minute == 60:
+        minute = 0
+        deg += 1
+
+    if deg == 30:
+        deg = 0
+        sidx = (sidx + 1) % 12
+        sign = SIGNS[sidx]
+
+    return f"{deg}°{minute:02d}′{sec:02d}″ {sign}"
