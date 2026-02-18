@@ -173,9 +173,14 @@ def calc_part_of_fortune(asc_lon: float, sun_lon: float, moon_lon: float, sect: 
     pof = asc + (moon - sun) if sect == "diurnal" else asc + (sun - moon)
     return norm360(pof)
 
-def calc_part_of_fortune_formatted(asc_lon: float, sun_lon: float, moon_lon: float, sect: str) -> str:
-    return format_sign_degree(calc_part_of_fortune(asc_lon, sun_lon, moon_lon, sect))
-
+def calc_part_of_fortune_formatted(
+    asc_lon: float,
+    sun_lon: float,
+    moon_lon: float,
+    sect: str
+) -> str:
+    pof_lon = calc_part_of_fortune(asc_lon, sun_lon, moon_lon, sect)
+    return format_lon_ddmmss_sign(pof_lon)
 
 # =============================================================================
 # Data models
