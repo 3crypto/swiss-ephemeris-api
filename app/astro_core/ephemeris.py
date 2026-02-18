@@ -103,6 +103,10 @@ def compute_chart(
 
         payload = planet_payload(lon_ecl, asc_sign_idx)
         payload["speed"] = speed
+        
+        # NEW: add DMS with seconds to output
+        payload["display"] = format_lon_ddmmss_sign(lon_ecl)
+        
         bodies_out[name] = payload
 
         if name == "north_node_true":

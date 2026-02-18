@@ -48,4 +48,4 @@ def format_lon_ddmmss_sign(lon: float) -> str:
     seconds = int(seconds_full)  # truncate, do not round
 
     return f"{deg}°{minutes:02d}′{seconds:02d}″ {sign}"
-
+    
