@@ -140,6 +140,8 @@ def compute_chart(
 
         pof_payload = planet_payload(pof_lon, asc_sign_idx)
         pof_payload["speed"] = 0.0  # PoF is a calculated point
+        
+        pof_payload["display"] = f"{format_lon_ddmmss_sign(pof_lon)} (House {pof_payload['house_whole_sign']})"
 
         bodies_out["part_of_fortune"] = pof_payload
 
