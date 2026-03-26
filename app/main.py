@@ -35,7 +35,6 @@ async def log_requests(request: Request, call_next):
     return response
 
 
-# Swiss Ephemeris setup (expects /.../swiss_api/ephe)
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
 
@@ -92,8 +91,6 @@ def chart(
 @app.post("/daily_transits")
 def daily_transits(
     natal_chart: NatalChartInput,
-
-    # transit inputs
     transit_year: int = Query(...),
     transit_month: int = Query(...),
     transit_day: int = Query(...),
@@ -103,18 +100,13 @@ def daily_transits(
     transit_tz_name: str = Query(...),
     transit_lat: float = Query(...),
     transit_lon: float = Query(...),
-
-    # rules inputs
     sect: str = "auto",
     minute_tol_arcmin: float = 1.59,
     zodiac: str = "tropical",
     ayanamsa: str = "fagan_bradley",
-
-    # output mode
-    mode: str = "qualifying",  # "qualifying" | "all" | "both"
+    mode: str = "qualifying",
 ):
     try:
-        # 1) Build transit chart from ephemeris
         transit_chart = compute_chart(
             year=transit_year,
             month=transit_month,
@@ -129,7 +121,6 @@ def daily_transits(
             ayanamsa=ayanamsa,
         )
 
-        # 2) Determine sect from user natal input or explicit override
         sect_norm = (sect or "auto").lower().strip()
         if sect_norm == "auto":
             sect_used = sect_from_user_natal_input(natal_chart)
@@ -137,24 +128,20 @@ def daily_transits(
             if sect_norm not in {"diurnal", "nocturnal"}:
                 raise HTTPException(
                     status_code=400,
-                    detail="sect must be 'auto', 'diurnal', or 'nocturnal'"
+                    detail="sect must be 'auto', 'diurnal', or 'nocturnal'",
                 )
             sect_used = sect_norm
 
-        # 3) Build positions
-        #    - natal comes from user input
-        #    - transits still come from ephemeris
         natal = build_positions_from_natal_input(natal_chart, sect=sect_used)
         transits = build_positions_from_chart_response(
             transit_chart,
             sect=sect_used,
-            include_pof=False
+            include_pof=False,
         )
 
-        # 4) Run engine
         engine = DailyTransitRuleEngine(
             sect=sect_used,
-            minute_tolerance_arcmin=minute_tol_arcmin
+            minute_tolerance_arcmin=minute_tol_arcmin,
         )
         mode_norm = (mode or "qualifying").lower().strip()
 
@@ -189,11 +176,12 @@ def daily_transits(
                 "all_hits": [h.to_json() for h in all_hits],
             }
 
-        raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
+        raise HTTPException(
+            status_code=400,
+            detail="mode must be one of: qualifying, all, both",
+        )
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
-
-
