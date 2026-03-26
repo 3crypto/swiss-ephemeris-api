@@ -28,7 +28,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 import math
 from .math_utils import format_lon_ddmmss_sign
-
+from .schemas import NatalChartInput
 
 # =============================================================================
 # RULES (single source of truth)
@@ -515,91 +515,171 @@ class DailyTransitRuleEngine:
 # Adapter: /chart response -> positions dict
 # =============================================================================
 
-def build_positions_from_chart_response(chart: dict, *, sect: str, include_pof: bool = True) -> Dict[str, BodyPosition]:
-    """
-    Convert your /chart JSON into the {Name: BodyPosition} dict
-    expected by DailyTransitRuleEngine.
+    def build_positions_from_chart_response(
+        chart: dict,
+        *,
+        sect: str,
+        include_pof: bool = True
+    ) -> Dict[str, BodyPosition]:
+        """
+        Convert your /chart JSON into the {Name: BodyPosition} dict
+        expected by DailyTransitRuleEngine.
 
-    Assumptions:
-      - chart["bodies"][key]["longitude"] exists
-      - angles live in chart["angles"]
-      - Part of Fortune is NOT in /chart today; you will add it OR omit it.
-    """
-    bodies = chart.get("bodies", {})
-    angles = chart.get("angles", {})
+        Assumptions:
+        - chart["bodies"][key]["longitude"] exists
+        - angles live in chart["angles"]
+        - Part of Fortune can be computed here if include_pof=True
+        """
+        bodies = chart.get("bodies", {})
+        angles = chart.get("angles", {})
 
-    out: Dict[str, BodyPosition] = {}
+        out: Dict[str, BodyPosition] = {}
 
-    # Map swiss_api keys -> rule engine names
-    key_map = {
-        "sun": "Sun",
-        "moon": "Moon",
-        "mercury": "Mercury",
-        "venus": "Venus",
-        "mars": "Mars",
-        "jupiter": "Jupiter",
-        "saturn": "Saturn",
-        "uranus": "Uranus",
-        "neptune": "Neptune",
-        "pluto": "Pluto",
-        "chiron": "Chiron",
-
-        # choose ONE node convention; your RULES expects Mean Node:
-        "north_node_mean": "North Node",
-
-        # If you prefer true node instead, swap the line above for:
-        # "north_node_true": "North Node",
-    }
-
-    for k, name in key_map.items():
-        if k in bodies:
-            lon = float(bodies[k]["longitude"])
-            out[name] = BodyPosition(longitude=lon, speed=bodies[k].get("speed"))
-
-    # Angles
-    if "asc" in angles:
-        out["Ascendant"] = BodyPosition(longitude=float(angles["asc"]))
-    if "mc" in angles:
-        out["Midheaven"] = BodyPosition(longitude=float(angles["mc"]))
-
-    # Part of Fortune (natal point)
-    if include_pof:
-        if sect is None:
-            raise ValueError("sect is required to compute Part of Fortune ('diurnal' or 'nocturnal')")
-
-        sect_norm = sect.lower().strip()
-        if sect_norm not in {"diurnal", "nocturnal"}:
-            raise ValueError("sect must be 'diurnal' or 'nocturnal'")
-
-        asc_lon = out.get("Ascendant").longitude if "Ascendant" in out else None
-        sun_lon = out.get("Sun").longitude if "Sun" in out else None
-        moon_lon = out.get("Moon").longitude if "Moon" in out else None
-
-        if asc_lon is None or sun_lon is None or moon_lon is None:
-            raise ValueError("Cannot compute Part of Fortune: need Ascendant, Sun, and Moon longitudes")
-
-        pof_lon = calc_part_of_fortune(
-            asc_lon=asc_lon,
-            sun_lon=sun_lon,
-            moon_lon=moon_lon,
-            sect=sect_norm,
-        )
-        out["Part of Fortune"] = BodyPosition(longitude=float(pof_lon))
-
-    return out
-
-def serialize_positions(
-    positions: Dict[str, BodyPosition],
-    *,
-    ascendant_lon: float,
-) -> Dict[str, Dict[str, Any]]:
-    return {
-        name: {
-            "longitude": float(pos.longitude),
-            "speed": None if pos.speed is None else float(pos.speed),
-            "display": format_sign_degree(float(pos.longitude)),
-            "house": whole_sign_house(float(ascendant_lon), float(pos.longitude)),
+        # Map swiss_api keys -> rule engine names
+        key_map = {
+            "sun": "Sun",
+            "moon": "Moon",
+            "mercury": "Mercury",
+            "venus": "Venus",
+            "mars": "Mars",
+            "jupiter": "Jupiter",
+            "saturn": "Saturn",
+            "uranus": "Uranus",
+            "neptune": "Neptune",
+            "pluto": "Pluto",
+            "chiron": "Chiron",
+            "north_node_mean": "North Node",
+            # If you prefer true node instead, swap the line above for:
+            # "north_node_true": "North Node",
         }
-        for name, pos in positions.items()
+
+        for k, name in key_map.items():
+            if k in bodies:
+                lon = float(bodies[k]["longitude"])
+                speed = bodies[k].get("speed")
+                out[name] = BodyPosition(
+                    longitude=lon,
+                    speed=None if speed is None else float(speed)
+                )
+
+        # Angles
+        if "asc" in angles:
+            out["Ascendant"] = BodyPosition(longitude=float(angles["asc"]))
+        if "mc" in angles:
+            out["Midheaven"] = BodyPosition(longitude=float(angles["mc"]))
+
+        # Part of Fortune (natal point)
+        if include_pof:
+            if sect is None:
+                raise ValueError("sect is required to compute Part of Fortune ('diurnal' or 'nocturnal')")
+
+            sect_norm = sect.lower().strip()
+            if sect_norm not in {"diurnal", "nocturnal"}:
+                raise ValueError("sect must be 'diurnal' or 'nocturnal'")
+
+            asc_lon = out.get("Ascendant").longitude if "Ascendant" in out else None
+            sun_lon = out.get("Sun").longitude if "Sun" in out else None
+            moon_lon = out.get("Moon").longitude if "Moon" in out else None
+
+            if asc_lon is None or sun_lon is None or moon_lon is None:
+                raise ValueError("Cannot compute Part of Fortune: need Ascendant, Sun, and Moon longitudes")
+
+            pof_lon = calc_part_of_fortune(
+                asc_lon=asc_lon,
+                sun_lon=sun_lon,
+                moon_lon=moon_lon,
+                sect=sect_norm,
+            )
+            out["Part of Fortune"] = BodyPosition(longitude=float(pof_lon))
+
+        return out
+
+
+    def serialize_positions(
+        positions: Dict[str, BodyPosition],
+        *,
+        ascendant_lon: float,
+    ) -> Dict[str, Dict[str, Any]]:
+        return {
+            name: {
+                "longitude": float(pos.longitude),
+                "speed": None if pos.speed is None else float(pos.speed),
+                "display": format_sign_degree(float(pos.longitude)),
+                "house": whole_sign_house(float(ascendant_lon), float(pos.longitude)),
+            }
+            for name, pos in positions.items()
+        }
+
+
+    # =============================================================================
+    # Adapter: user natal input -> positions dict
+    # =============================================================================
+
+    SIGN_TO_INDEX = {
+        "Aries": 0,
+        "Taurus": 1,
+        "Gemini": 2,
+        "Cancer": 3,
+        "Leo": 4,
+        "Virgo": 5,
+        "Libra": 6,
+        "Scorpio": 7,
+        "Sagittarius": 8,
+        "Capricorn": 9,
+        "Aquarius": 10,
+        "Pisces": 11,
     }
 
+    def sign_degree_minute_to_longitude(sign: str, degree: int, minute: int) -> float:
+        sign_index = SIGN_TO_INDEX[sign]
+        return norm360(sign_index * 30.0 + degree + (minute / 60.0))
+
+    def build_positions_from_natal_input(
+        natal_chart: NatalChartInput,
+        *,
+        sect: str,
+    ) -> Dict[str, BodyPosition]:
+        """
+        Convert user-entered natal input into the {Name: BodyPosition} dict
+        expected by DailyTransitRuleEngine.
+        """
+        out: Dict[str, BodyPosition] = {}
+
+        for body_name, body in natal_chart.bodies.items():
+            lon = sign_degree_minute_to_longitude(
+                sign=body.sign,
+                degree=body.degree,
+                minute=body.minute,
+            )
+            out[body_name] = BodyPosition(longitude=lon, speed=None)
+
+        required = {
+            "Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn",
+            "Uranus", "Neptune", "Pluto", "Chiron", "North Node",
+            "Ascendant", "Midheaven", "Part of Fortune"
+        }
+        missing = required - set(out.keys())
+        if missing:
+            raise ValueError(f"Missing natal bodies for daily transit engine: {sorted(missing)}")
+
+        return out
+
+    def sect_from_user_natal_input(natal_chart: NatalChartInput) -> str:
+        """
+        User-defined sect rule:
+          - Sun in houses 1–6  => nocturnal
+          - Sun in houses 7–12 => diurnal
+        """
+        sun = natal_chart.bodies.get("Sun")
+        if not sun:
+            raise ValueError("Cannot determine sect: natal input is missing 'Sun'.")
+
+        house_i = int(sun.house_whole_sign)
+
+        if 1 <= house_i <= 6:
+            return "nocturnal"
+        if 7 <= house_i <= 12:
+            return "diurnal"
+
+        raise ValueError(f"Cannot determine sect: invalid Sun house_whole_sign={house_i}.")
+       
