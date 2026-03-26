@@ -88,6 +88,82 @@ def chart(
         raise HTTPException(status_code=400, detail=str(e))
 
 
+@app.post("/chart_from_input")
+def chart_from_input(natal_chart: NatalChartInput):
+    sign_to_index = {
+        "Aries": 0,
+        "Taurus": 1,
+        "Gemini": 2,
+        "Cancer": 3,
+        "Leo": 4,
+        "Virgo": 5,
+        "Libra": 6,
+        "Scorpio": 7,
+        "Sagittarius": 8,
+        "Capricorn": 9,
+        "Aquarius": 10,
+        "Pisces": 11,
+    }
+
+    def format_position(degree: int, minute: int, sign: str, house: int) -> str:
+        return f"{degree:02d}°{minute:02d}′ {sign} (House {house})"
+
+    try:
+        bodies = {}
+
+        for body_name, body in natal_chart.bodies.items():
+            longitude = sign_to_index[body.sign] * 30 + body.degree + (body.minute / 60.0)
+            deg_in_sign = body.degree + (body.minute / 60.0)
+
+            bodies[body_name] = {
+                "longitude": longitude,
+                "sign": body.sign,
+                "deg_in_sign": deg_in_sign,
+                "house_whole_sign": body.house_whole_sign,
+                "display": format_position(
+                    degree=body.degree,
+                    minute=body.minute,
+                    sign=body.sign,
+                    house=body.house_whole_sign,
+                ),
+                "speed": None,
+            }
+
+        asc = bodies["Ascendant"]["longitude"]
+        mc = bodies["Midheaven"]["longitude"]
+        dsc = (asc + 180.0) % 360.0
+        ic = (mc + 180.0) % 360.0
+
+        return {
+            "source": "user_input",
+            "zodiac": natal_chart.zodiac,
+            "ayanamsa": {
+                "name": natal_chart.ayanamsa,
+                "degrees": None,
+            },
+            "angles": {
+                "asc": asc,
+                "asc_sign": bodies["Ascendant"]["sign"],
+                "dsc": dsc,
+                "mc": mc,
+                "mc_sign": bodies["Midheaven"]["sign"],
+                "ic": ic,
+                "asc_display": bodies["Ascendant"]["display"],
+                "dsc_display": None,
+                "mc_display": bodies["Midheaven"]["display"],
+                "ic_display": None,
+                "asc_house_whole_sign": bodies["Ascendant"]["house_whole_sign"],
+                "dsc_house_whole_sign": ((bodies["Ascendant"]["house_whole_sign"] + 5) % 12) + 1,
+                "mc_house_whole_sign": bodies["Midheaven"]["house_whole_sign"],
+                "ic_house_whole_sign": ((bodies["Midheaven"]["house_whole_sign"] + 5) % 12) + 1,
+            },
+            "bodies": bodies,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
 @app.post("/daily_transits")
 def daily_transits(
     natal_chart: NatalChartInput,
