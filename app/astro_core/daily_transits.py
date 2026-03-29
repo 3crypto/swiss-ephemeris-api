@@ -28,7 +28,7 @@ from dataclasses import dataclass, asdict
 from typing import Dict, List, Optional, Any
 import math
 from .math_utils import format_lon_ddmmss_sign
-from .schemas import NatalChartInput
+from ..schemas import NatalChartInput
 
 # =============================================================================
 # RULES (single source of truth)
