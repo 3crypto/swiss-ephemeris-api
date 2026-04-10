@@ -2,19 +2,40 @@ import os
 import time
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 
-from .schemas import ChartResponse, NatalChartInput
+from .schemas import ChartResponse, NatalChartInput, ChartFromInputRequest, DailyTransitsRequest
 from .astro_core.settings import init_ephemeris
 from .astro_core.ephemeris import compute_chart
 from .astro_core.daily_transits import (
     DailyTransitRuleEngine,
+    BodyPosition,
     build_positions_from_chart_response,
     build_positions_from_natal_input,
     serialize_positions,
     sect_from_user_natal_input,
+    calc_part_of_fortune,
+    whole_sign_house,
+    SIGN_TO_INDEX,
 )
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
+
+
+@app.on_event("startup")
+def _startup():
+    init_ephemeris(EPHE_PATH)
 
 
 @app.middleware("http")
@@ -33,15 +54,6 @@ async def log_requests(request: Request, call_next):
     ms = int((time.time() - start) * 1000)
     print(f"STATUS {response.status_code} ct={ct} len={cl} ms={ms} path={request.url.path}")
     return response
-
-
-PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EPHE_PATH = os.path.join(PROJECT_ROOT, "ephe")
-
-
-@app.on_event("startup")
-def _startup():
-    init_ephemeris(EPHE_PATH)
 
 
 @app.get("/")
@@ -88,127 +100,113 @@ def chart(
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@app.post("/chart_from_input")
-def chart_from_input(natal_chart: NatalChartInput):
-    sign_to_index = {
-        "Aries": 0,
-        "Taurus": 1,
-        "Gemini": 2,
-        "Cancer": 3,
-        "Leo": 4,
-        "Virgo": 5,
-        "Libra": 6,
-        "Scorpio": 7,
-        "Sagittarius": 8,
-        "Capricorn": 9,
-        "Aquarius": 10,
-        "Pisces": 11,
-    }
+def _resolve_sect(sect_param: str, sun_house: int) -> str:
+    """Determine sect from request param, falling back to auto-detect from Sun's house."""
+    sect_norm = sect_param.lower().strip()
+    if sect_norm == "auto":
+        if 1 <= sun_house <= 6:
+            return "nocturnal"
+        if 7 <= sun_house <= 12:
+            return "diurnal"
+        raise HTTPException(status_code=400, detail=f"Cannot determine sect: invalid Sun house {sun_house}")
+    if sect_norm not in {"diurnal", "nocturnal"}:
+        raise HTTPException(status_code=400, detail="sect must be 'auto', 'diurnal', or 'nocturnal'")
+    return sect_norm
 
-    def format_position(degree: int, minute: int, sign: str, house: int) -> str:
-        return f"{degree:02d}°{minute:02d}′ {sign} (House {house})"
 
-    try:
-        bodies = {}
+def _run_engine(
+    engine: DailyTransitRuleEngine,
+    transits: dict,
+    natal: dict,
+    natal_asc: float,
+    sect_used: str,
+    minute_tol_arcmin: float,
+    mode: str,
+) -> dict:
+    mode_norm = mode.lower().strip()
 
-        for body_name, body in natal_chart.bodies.items():
-            longitude = sign_to_index[body.sign] * 30 + body.degree + (body.minute / 60.0)
-            deg_in_sign = body.degree + (body.minute / 60.0)
-
-            bodies[body_name] = {
-                "longitude": longitude,
-                "sign": body.sign,
-                "deg_in_sign": deg_in_sign,
-                "house_whole_sign": body.house_whole_sign,
-                "display": format_position(
-                    degree=body.degree,
-                    minute=body.minute,
-                    sign=body.sign,
-                    house=body.house_whole_sign,
-                ),
-                "speed": None,
-            }
-
-        asc = bodies["Ascendant"]["longitude"]
-        mc = bodies["Midheaven"]["longitude"]
-        dsc = (asc + 180.0) % 360.0
-        ic = (mc + 180.0) % 360.0
-
+    if mode_norm == "qualifying":
+        hits = engine.run_qualifying(transits=transits, natal=natal)
         return {
-            "source": "user_input",
-            "zodiac": natal_chart.zodiac,
-            "ayanamsa": {
-                "name": natal_chart.ayanamsa,
-                "degrees": None,
-            },
-            "angles": {
-                "asc": asc,
-                "asc_sign": bodies["Ascendant"]["sign"],
-                "dsc": dsc,
-                "mc": mc,
-                "mc_sign": bodies["Midheaven"]["sign"],
-                "ic": ic,
-                "asc_display": bodies["Ascendant"]["display"],
-                "dsc_display": None,
-                "mc_display": bodies["Midheaven"]["display"],
-                "ic_display": None,
-                "asc_house_whole_sign": bodies["Ascendant"]["house_whole_sign"],
-                "dsc_house_whole_sign": ((bodies["Ascendant"]["house_whole_sign"] + 5) % 12) + 1,
-                "mc_house_whole_sign": bodies["Midheaven"]["house_whole_sign"],
-                "ic_house_whole_sign": ((bodies["Midheaven"]["house_whole_sign"] + 5) % 12) + 1,
-            },
-            "bodies": bodies,
+            "mode": "qualifying",
+            "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+            "transits": serialize_positions(transits, ascendant_lon=natal_asc),
+            "hits": [h.to_json() for h in hits],
         }
 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+    if mode_norm == "all":
+        hits = engine.run_all(transits=transits, natal=natal)
+        return {
+            "mode": "all",
+            "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+            "transits": serialize_positions(transits, ascendant_lon=natal_asc),
+            "hits": [h.to_json() for h in hits],
+        }
+
+    if mode_norm == "both":
+        qualifying = engine.run_qualifying(transits=transits, natal=natal)
+        all_hits = engine.run_all(transits=transits, natal=natal)
+        return {
+            "mode": "both",
+            "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
+            "transits": serialize_positions(transits, ascendant_lon=natal_asc),
+            "qualifying_hits": [h.to_json() for h in qualifying],
+            "all_hits": [h.to_json() for h in all_hits],
+        }
+
+    raise HTTPException(status_code=400, detail="mode must be one of: qualifying, all, both")
 
 
-@app.post("/daily_transits")
-def daily_transits(
-    natal_chart: NatalChartInput,
-    transit_year: int = Query(...),
-    transit_month: int = Query(...),
-    transit_day: int = Query(...),
-    transit_hour: int = 0,
-    transit_minute: int = 0,
-    transit_second: float = 0.0,
-    transit_tz_name: str = Query(...),
-    transit_lat: float = Query(...),
-    transit_lon: float = Query(...),
-    sect: str = "auto",
-    minute_tol_arcmin: float = 1.59,
-    zodiac: str = "tropical",
-    ayanamsa: str = "fagan_bradley",
-    mode: str = "qualifying",
-):
+@app.post("/chart_from_input")
+def chart_from_input(request: ChartFromInputRequest):
+    """
+    Accepts natal planet positions (array format from frontend) + transit date/location.
+    Computes transiting aspects to the provided natal positions.
+    """
     try:
+        # Index planets by name for easy lookup
+        planets_by_name = {p.planet: p for p in request.natal_chart}
+
+        sun = planets_by_name.get("Sun")
+        if not sun:
+            raise HTTPException(status_code=400, detail="Missing 'Sun' in natal_chart")
+
+        sect_used = _resolve_sect(request.sect, sun.house)
+
+        # Build natal positions dict from array
+        natal: dict = {}
+        for p in request.natal_chart:
+            lon = SIGN_TO_INDEX[p.sign] * 30.0 + p.degree + (p.minute / 60.0)
+            natal[p.planet] = BodyPosition(longitude=lon, speed=None)
+
+        # Compute Part of Fortune (required by the transit engine)
+        asc_pos = natal.get("Ascendant")
+        sun_pos = natal.get("Sun")
+        moon_pos = natal.get("Moon")
+        if asc_pos and sun_pos and moon_pos:
+            pof_lon = calc_part_of_fortune(
+                asc_lon=asc_pos.longitude,
+                sun_lon=sun_pos.longitude,
+                moon_lon=moon_pos.longitude,
+                sect=sect_used,
+            )
+            natal["Part of Fortune"] = BodyPosition(longitude=pof_lon)
+
+        # Compute transit chart
         transit_chart = compute_chart(
-            year=transit_year,
-            month=transit_month,
-            day=transit_day,
-            hour=transit_hour,
-            minute=transit_minute,
-            second=transit_second,
-            tz_name=transit_tz_name,
-            lat=transit_lat,
-            lon=transit_lon,
-            zodiac=zodiac,
-            ayanamsa=ayanamsa,
+            year=request.transit_year,
+            month=request.transit_month,
+            day=request.transit_day,
+            hour=request.transit_hour,
+            minute=request.transit_minute,
+            second=request.transit_second,
+            tz_name=request.transit_tz_name,
+            lat=request.transit_lat,
+            lon=request.transit_lon,
+            zodiac=request.zodiac,
+            ayanamsa=request.ayanamsa or "fagan_bradley",
         )
 
-        sect_norm = (sect or "auto").lower().strip()
-        if sect_norm == "auto":
-            sect_used = sect_from_user_natal_input(natal_chart)
-        else:
-            if sect_norm not in {"diurnal", "nocturnal"}:
-                raise HTTPException(
-                    status_code=400,
-                    detail="sect must be 'auto', 'diurnal', or 'nocturnal'",
-                )
-            sect_used = sect_norm
-
-        natal = build_positions_from_natal_input(natal_chart, sect=sect_used)
         transits = build_positions_from_chart_response(
             transit_chart,
             sect=sect_used,
@@ -217,44 +215,113 @@ def daily_transits(
 
         engine = DailyTransitRuleEngine(
             sect=sect_used,
-            minute_tolerance_arcmin=minute_tol_arcmin,
+            minute_tolerance_arcmin=request.minute_tol_arcmin,
         )
-        mode_norm = (mode or "qualifying").lower().strip()
 
         natal_asc = natal["Ascendant"].longitude
 
-        if mode_norm == "qualifying":
-            hits = engine.run_qualifying(transits=transits, natal=natal)
-            return {
-                "mode": "qualifying",
-                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits, ascendant_lon=natal_asc),
-                "hits": [h.to_json() for h in hits],
-            }
+        return _run_engine(
+            engine=engine,
+            transits=transits,
+            natal=natal,
+            natal_asc=natal_asc,
+            sect_used=sect_used,
+            minute_tol_arcmin=request.minute_tol_arcmin,
+            mode=request.mode,
+        )
 
-        if mode_norm == "all":
-            hits = engine.run_all(transits=transits, natal=natal)
-            return {
-                "mode": "all",
-                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits, ascendant_lon=natal_asc),
-                "hits": [h.to_json() for h in hits],
-            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
-        if mode_norm == "both":
-            qualifying = engine.run_qualifying(transits=transits, natal=natal)
-            all_hits = engine.run_all(transits=transits, natal=natal)
-            return {
-                "mode": "both",
-                "rules": {"sect": sect_used, "minute_tol_arcmin": minute_tol_arcmin},
-                "transits": serialize_positions(transits, ascendant_lon=natal_asc),
-                "qualifying_hits": [h.to_json() for h in qualifying],
-                "all_hits": [h.to_json() for h in all_hits],
-            }
 
-        raise HTTPException(
-            status_code=400,
-            detail="mode must be one of: qualifying, all, both",
+@app.post("/daily_transits")
+def daily_transits(request: DailyTransitsRequest):
+    """
+    Accepts birth date/time/location + transit date/time/location.
+    Computes the natal chart from birth details, then computes transiting aspects.
+    """
+    try:
+        ayanamsa = request.ayanamsa or "fagan_bradley"
+
+        # Compute natal chart from birth details
+        natal_chart = compute_chart(
+            year=request.natal_year,
+            month=request.natal_month,
+            day=request.natal_day,
+            hour=request.natal_hour,
+            minute=request.natal_minute,
+            second=request.natal_second,
+            tz_name=request.natal_tz_name,
+            lat=request.natal_lat,
+            lon=request.natal_lon,
+            zodiac=request.zodiac,
+            ayanamsa=ayanamsa,
+        )
+
+        # Compute transit chart
+        transit_chart = compute_chart(
+            year=request.transit_year,
+            month=request.transit_month,
+            day=request.transit_day,
+            hour=request.transit_hour,
+            minute=request.transit_minute,
+            second=request.transit_second,
+            tz_name=request.transit_tz_name,
+            lat=request.transit_lat,
+            lon=request.transit_lon,
+            zodiac=request.zodiac,
+            ayanamsa=ayanamsa,
+        )
+
+        # Determine sect from natal Sun's house
+        sect_norm = request.sect.lower().strip()
+        if sect_norm == "auto":
+            natal_bodies = natal_chart.get("bodies", {})
+            natal_angles = natal_chart.get("angles", {})
+            sun_body = natal_bodies.get("sun")
+            if sun_body:
+                asc_lon = natal_angles.get("asc", 0.0)
+                sun_lon = sun_body.get("longitude", 0.0)
+                sun_house = whole_sign_house(asc_lon, sun_lon)
+                sect_used = "nocturnal" if 1 <= sun_house <= 6 else "diurnal"
+            else:
+                sect_used = "diurnal"
+        else:
+            if sect_norm not in {"diurnal", "nocturnal"}:
+                raise HTTPException(
+                    status_code=400,
+                    detail="sect must be 'auto', 'diurnal', or 'nocturnal'",
+                )
+            sect_used = sect_norm
+
+        natal = build_positions_from_chart_response(
+            natal_chart,
+            sect=sect_used,
+            include_pof=True,
+        )
+        transits = build_positions_from_chart_response(
+            transit_chart,
+            sect=sect_used,
+            include_pof=False,
+        )
+
+        engine = DailyTransitRuleEngine(
+            sect=sect_used,
+            minute_tolerance_arcmin=request.minute_tol_arcmin,
+        )
+
+        natal_asc = natal["Ascendant"].longitude
+
+        return _run_engine(
+            engine=engine,
+            transits=transits,
+            natal=natal,
+            natal_asc=natal_asc,
+            sect_used=sect_used,
+            minute_tol_arcmin=request.minute_tol_arcmin,
+            mode=request.mode,
         )
 
     except HTTPException:

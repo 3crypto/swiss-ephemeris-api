@@ -2,7 +2,7 @@ from typing import Dict, Optional, Literal, List
 from pydantic import BaseModel, Field, model_validator
 
 # -----------------------------
-# Natal Input Models
+# Natal Input Models (internal)
 # -----------------------------
 
 SignLiteral = Literal[
@@ -33,6 +33,74 @@ class NatalChartInput(BaseModel):
         if missing:
             raise ValueError(f"Missing natal bodies: {sorted(missing)}")
         return self
+
+
+# -----------------------------
+# Frontend-facing Request Models
+# -----------------------------
+
+class NatalPlanetInput(BaseModel):
+    """Single planet entry as sent by the frontend (array format)."""
+    planet: str
+    degree: int = Field(..., ge=0, le=29)
+    minute: int = Field(..., ge=0, le=59)
+    second: int = Field(default=0, ge=0, le=59)
+    sign: SignLiteral
+    house: int = Field(..., ge=1, le=12)
+
+
+class ChartFromInputRequest(BaseModel):
+    """
+    Request body for /chart_from_input.
+    Used when natal planet positions are already known (stored from a previous call).
+    Computes transits against those natal positions.
+    """
+    natal_chart: List[NatalPlanetInput]
+    transit_year: int
+    transit_month: int
+    transit_day: int
+    transit_hour: int = 0
+    transit_minute: int = 0
+    transit_second: float = 0.0
+    transit_tz_name: str
+    transit_lat: float
+    transit_lon: float
+    zodiac: Literal["tropical", "sidereal"] = "tropical"
+    ayanamsa: Optional[str] = None
+    sect: str = "auto"
+    mode: str = "qualifying"
+    minute_tol_arcmin: float = 1.59
+
+
+class DailyTransitsRequest(BaseModel):
+    """
+    Request body for /daily_transits.
+    Used when only birth date/time/location is known — computes the natal chart first,
+    then computes transits.
+    """
+    natal_year: int
+    natal_month: int
+    natal_day: int
+    natal_hour: int = 0
+    natal_minute: int = 0
+    natal_second: float = 0.0
+    natal_tz_name: str
+    natal_lat: float
+    natal_lon: float
+    transit_year: int
+    transit_month: int
+    transit_day: int
+    transit_hour: int = 0
+    transit_minute: int = 0
+    transit_second: float = 0.0
+    transit_tz_name: str
+    transit_lat: float
+    transit_lon: float
+    zodiac: Literal["tropical", "sidereal"] = "tropical"
+    ayanamsa: Optional[str] = None
+    sect: str = "auto"
+    mode: str = "qualifying"
+    minute_tol_arcmin: float = 1.59
 
 
 # -----------------------------
