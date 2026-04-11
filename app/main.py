@@ -179,18 +179,19 @@ def chart_from_input(request: ChartFromInputRequest):
             lon = SIGN_TO_INDEX[p.sign] * 30.0 + p.degree + (p.minute / 60.0)
             natal[p.planet] = BodyPosition(longitude=lon, speed=None)
 
-        # Compute Part of Fortune (required by the transit engine)
-        asc_pos = natal.get("Ascendant")
-        sun_pos = natal.get("Sun")
-        moon_pos = natal.get("Moon")
-        if asc_pos and sun_pos and moon_pos:
-            pof_lon = calc_part_of_fortune(
-                asc_lon=asc_pos.longitude,
-                sun_lon=sun_pos.longitude,
-                moon_lon=moon_pos.longitude,
-                sect=sect_used,
-            )
-            natal["Part of Fortune"] = BodyPosition(longitude=pof_lon)
+        # Compute Part of Fortune only if the user didn't supply it
+        if "Part of Fortune" not in natal:
+            asc_pos = natal.get("Ascendant")
+            sun_pos = natal.get("Sun")
+            moon_pos = natal.get("Moon")
+            if asc_pos and sun_pos and moon_pos:
+                pof_lon = calc_part_of_fortune(
+                    asc_lon=asc_pos.longitude,
+                    sun_lon=sun_pos.longitude,
+                    moon_lon=moon_pos.longitude,
+                    sect=sect_used,
+                )
+                natal["Part of Fortune"] = BodyPosition(longitude=pof_lon)
 
         # Compute transit chart
         transit_chart = compute_chart(
