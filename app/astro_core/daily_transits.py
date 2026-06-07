@@ -272,10 +272,16 @@ class DailyTransitRuleEngine:
 
     def _outer_natal_receiving_allowed(self, transit_body: str, natal_point: str) -> bool:
         if natal_point in RULES.OUTER_NATAL:
-            return transit_body in RULES.OUTER_NATAL_ALLOWED_TRANSITS
+            return (
+                transit_body in RULES.OUTER_NATAL_ALLOWED_TRANSITS
+                or transit_body in RULES.OUTER_NATAL
+            )
         return True
 
-    def _minute_exact_required(self, transit_body: str) -> bool:
+    def _minute_exact_required(self, transit_body: str, natal_point: str = "") -> bool:
+        # Outer transiting planet aspecting outer natal planet always requires minute-exact.
+        if transit_body in RULES.OUTER_NATAL and natal_point in RULES.OUTER_NATAL:
+            return True
         # Only relevant in qualifying mode; all_3deg ignores minute-exact gating.
         return transit_body in RULES.MINUTE_EXACT_TRANSITS
 
@@ -343,9 +349,8 @@ class DailyTransitRuleEngine:
         natal_items = [(n, p) for n, p in natal.items() if self._eligible_natal_point(n)]
 
         for t_body, t_pos in transit_items:
-            minute_required = self._minute_exact_required(t_body)
-
             for n_point, n_pos in natal_items:
+                minute_required = self._minute_exact_required(t_body, n_point)
                 if not self._outer_natal_receiving_allowed(t_body, n_point):
                     continue
 
