@@ -3,7 +3,8 @@ Daily Transit Rules — Rule-first implementation (hybrid)
 
 - Personal/Jupiter group (Sun, Mercury, Venus, Mars, Jupiter):
   - applying vs separating is computed (if speed is provided)
-  - orb depends on applying vs separating (per RULES.ORB_RULES)
+  - only applying aspects qualify, within a flat 1° orb (per RULES.ORB_RULES)
+  - separating aspects never qualify; unknown applying/separating still qualifies within 1°
 
 - Minute-exact group (Saturn, Uranus, Neptune, Pluto, Chiron, North Node):
   - qualifying mode: must be "exact to degree+minute" (within RULES.MINUTE_TOL_ARCMIN)
@@ -63,14 +64,14 @@ class RULES:
         "quincunx": 150.0,
     }
 
-    # Applying vs separating orb rules (only used for qualifying mode on non-minute-exact bodies)
-    # (applying_orb_deg, separating_orb_deg)
+    # Applying orb rules (only used for qualifying mode on non-minute-exact bodies)
+    # Separating aspects do not qualify; only applying aspects within this orb qualify.
     ORB_RULES = {
-        "Sun": (2.0, 1.0),
-        "Venus": (2.0, 1.0),
-        "Mars": (2.0, 1.0),
-        "Jupiter": (2.0, 1.0),
-        "Mercury": (2.5, 1.0),
+        "Sun": 1.0,
+        "Venus": 1.0,
+        "Mars": 1.0,
+        "Jupiter": 1.0,
+        "Mercury": 1.0,
     }
 
     # Minute-exact-only transiting bodies (qualifying mode only)
@@ -319,14 +320,14 @@ class DailyTransitRuleEngine:
     def _orb_for_non_exact_qualifying(self, transit_body: str, applying: Optional[bool]) -> Optional[float]:
         """
         Qualifying mode only (non-minute-exact bodies).
-        Uses applying/separating orb rules. If applying is unknown, uses the tighter orb.
+        Only applying aspects qualify (separating aspects do not).
+        If applying/separating is unknown (no speed data), still qualifies using the applying orb.
         """
         if transit_body not in RULES.ORB_RULES:
             return None
-        app_orb, sep_orb = RULES.ORB_RULES[transit_body]
-        if applying is None:
-            return min(app_orb, sep_orb)
-        return app_orb if applying else sep_orb
+        if applying is False:
+            return None
+        return RULES.ORB_RULES[transit_body]
 
     # -------------------------
     # core aspect finding
